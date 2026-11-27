@@ -1,6 +1,6 @@
 # DotHerd Windows MVP 项目规划
 
-规划基线为 2026-11-27 的 [MVP 设计提案](DotHerd-MVP.md)。M0 已通过 [P01 工具包与来源验证](README.md#p01-本地-nuget-源实测) 和 [P02 单活跃用户的 Windows 宿主验证](README.md#p02-windows-宿主实测)。P03 待实施。
+规划基线为 2026-11-27 的 [MVP 设计提案](DotHerd-MVP.md)。M0 已完成 [P01 工具包与来源](README.md#p01-本地-nuget-源实测)、[P02 单活跃用户的 Windows 宿主](README.md#p02-windows-宿主实测) 和 [P03 MCP 与 Serena 直连](probes/P03/README.md) 三项验证。
 
 **交付目标**是让普通 Windows 用户通过 `dotherd install SerenaPool` 安装并托管 Serena Pool。两个 agent 各自通过 DotHerd 领取不同 worktree 并完成一次真实调用。用户停止服务后，agent 重连、管理器重启和重新登录均尊重这一选择。
 
@@ -8,7 +8,7 @@
 
 ## 一、顺序与工作量
 
-按一名熟悉 .NET、可使用独立 Windows 交互测试账户的开发者估算，合计 **37–60 人日**。这是包含开发、联调和验收的初估。M0 完成后用实测的打包、进程和协议结果修订估算。公开包名获取、外部仓库排期和发布等待需另计。
+按一名熟悉 .NET、可使用独立 Windows 交互测试账户的开发者估算，合计 **37–60 人日**。这是包含开发、联调和验收的初估。M0 已确定包布局、宿主启动方式及协议组合。M6 的 4–7 人日需覆盖慢启动协商修复与双客户端联调，修复工时尚待作者侧验证。公开包名获取、外部仓库排期和发布等待需另计。
 
 | 里程碑 | 前置条件 | 可交付结果 | 估算 |
 |---|---|---|---:|
@@ -48,7 +48,7 @@
 | P02 Windows 宿主 | 从工具入口并发执行两个首次命令，关闭终端后查询宿主。让测试应用创建子进程，再终止宿主观察整棵树。按单活跃用户假设直接执行登录入口，跳过独立账户重登。 | 已记录两次 CLI 返回结果、终端关闭后的实例数、父子进程退出结果和登录入口的控制台状态。采用同包 CLI 与 WinExe 桌面宿主。[实测记录](README.md#p02-windows-宿主实测) |
 | P03 MCP 与 Serena 直连 | 固定客户端、C# SDK、Serena Pool 及 worker 版本，先直连现有 `serena-pool mcp`，依次做工具发现和 `acquire → call → release`。遇错时区分前端到 bridge、bridge 到 core、core 到 worker 三段，并记录失败方法、修订与已脱敏的错误。 | 留下直连成功记录或一个可重复的失败步骤及归属。列明新修订与实际旧版各自的发现、调用、进度和取消能力；已知失败进入 M6 跟踪。M1–M3 可独立推进。 |
 
-MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采用的修订可能不同，应分别记录。P03 要验证旧修订的握手，以及新修订的逐请求元数据和能力声明。客户端绑定的生命周期由 DotHerd 管理。[MCP 修订说明](https://blog.modelcontextprotocol.io/posts/2026-07-28/) · [工具规范](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
+MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采用的修订可能不同，应分别记录。P03 已实测两种前端修订；旧前端的调用也能到达使用新版的 worker。M4 需区分取消排队与取消等待已经执行的请求。客户端绑定的生命周期由 DotHerd 管理。[MCP 修订说明](https://blog.modelcontextprotocol.io/posts/2026-07-28/) · [工具规范](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
 
 ### M1　本地程序、唯一宿主与控制协议
 
@@ -91,7 +91,7 @@ MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采�
 
 ### M6　Serena Pool 作者接入与双客户端联调
 
-本机作者项目当前声明版本 `0.3.0`、包类型 `DotnetTool;McpServer`，现有 MCP 清单的 stdio 参数为 `mcp`。README 记录 core 每 15 秒检查空闲退出，`Pool__WebDashboard` 会同时影响页面与托盘。这些是接入起点。MVP 记录的 acquire 握手错误仍须在 P03 复现或排除。[作者项目](../serena-pool/src/SerenaPool/SerenaPool.csproj) · [现有清单](../serena-pool/src/SerenaPool/.mcp/server.json) · [作者说明](../serena-pool/README.zh-CN.md)
+本机作者项目当前声明版本 `0.3.0`、包类型 `DotnetTool;McpServer`，现有 MCP 清单的 stdio 参数为 `mcp`。README 记录 core 每 15 秒检查空闲退出，`Pool__WebDashboard` 会同时影响页面与托盘。这些是接入起点。M6 作者侧须处理 core 到慢启动 worker 的协商。以 P03 的 7 秒延迟复验，验收首次领取、调用和释放。现版可复现旧握手错误 `-32022`。[P03 实测](probes/P03/README.md) · [作者项目](../serena-pool/src/SerenaPool/SerenaPool.csproj) · [现有清单](../serena-pool/src/SerenaPool/.mcp/server.json) · [作者说明](../serena-pool/README.zh-CN.md)
 
 1. **作者仓库**将 `.dotherd/app.json` 打入顶层包，沿用 `DotnetTool;McpServer` 和 `.mcp/server.json`。明确独立启动的 `mcp` 与受管模式的 `mcp --connect-only` 的各自用途，和安装器共同验证双声明；真实的入口或传输冲突应能指出。
 2. **作者仓库**实现前台 `--supervised`。管理和 MCP 管道可用后发送 ready，受管 core 取消自身空闲退出，保留 worker 和租约策略。同端口已有独立 core 时给出迁移提示并保护其会话。dashboard 沿用现有实现，可单独抑制旧托盘；页面关闭时禁用 open 动作。
@@ -113,4 +113,4 @@ MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采�
 | HTTP 与 stdio 隔离 | M4 | 两种前端的同号并发请求和取消是否各归其主？缺少凭据或非法来源是否被拒绝？ |
 | Serena 端到端 | M6 | 两个实际调用各返回什么、共享几个 core、释放后哪些进程退出，以及手动停止后工具是否撤销？ |
 
-保留候选版本、SDK 和 MCP 修订、入口命令、退出码、可辨别的调用结果，以及登录或托盘的人工观察。P01、P02 已完成，M1 可沿用同包双入口和每应用独立 Job 的方案。P03 将在已有 Serena 环境确定 M4/M6 需要支持和修复的协议组合。
+保留候选版本、SDK 和 MCP 修订、入口命令、退出码、可辨别的调用结果，以及登录或托盘的人工观察。M1 可沿用 P02 的同包双入口和每应用独立 Job 方案。P03 的正常与慢启动结果可用于 M4/M6 联调。

@@ -1,6 +1,6 @@
 # DotHerd
 
-DotHerd 的目标是让 Windows 用户从 NuGet 安装并托管常驻应用。M0 已完成 P01 工具包验证和 P02 单活跃用户的 Windows 宿主验证。产品设计与后续任务见 [MVP 提案](DotHerd-MVP.md) 和 [项目规划](DotHerd-项目规划.md)。
+DotHerd 的目标是让 Windows 用户从 NuGet 安装并托管常驻应用。M0 的工具包、Windows 宿主和 Serena Pool 直连验证均已完成。产品设计与后续任务见 [MVP 提案](DotHerd-MVP.md) 和 [项目规划](DotHerd-项目规划.md)。
 
 ## P01 本地 NuGet 源实测
 
@@ -42,3 +42,7 @@ pwsh -NoProfile -File .\probes\P01\verify.ps1
 M1 可以沿用同包双入口。CLI 显式设置 `UseShellExecute = true` 后，即使调用方重定向了输出，也能读到 EOF 并关闭终端。宿主为应用创建带 `KILL_ON_JOB_CLOSE` 的 Job Object，通过 `PROC_THREAD_ATTRIBUTE_JOB_LIST` 在创建应用进程时就将其纳入 Job。之后应用自行创建的子进程也随之回收。[Windows Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
 
 从仓库根目录运行 `pwsh -NoProfile -File .\probes\P02\verify.ps1` 可复验以上四项。脚本使用本地源、独立安装目录和无可见窗口的 Windows 控制台，完成后回收本轮进程和临时目录。[验收脚本](probes/P02/verify.ps1)
+
+## P03 Serena Pool 直连
+
+两种前端修订 `2026-07-28`、`2025-11-25` 都能直连 `serena-pool mcp`、发现四个工具、领取目录、从真实 REPL 得到 `42` 并释放租约。另已复现首次领取失败。worker 启动较慢时，core 会在同一连接上尝试旧握手，收到 `-32022`。该问题归入 M6。[版本、取消行为、三段链路与复验命令](probes/P03/README.md)

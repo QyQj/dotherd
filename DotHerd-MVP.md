@@ -161,4 +161,4 @@ CLI 和桌面宿主是两个进程角色；短命令通过本地 IPC 调用唯�
 - MCP 单入口和协议：[Moor 网关](https://github.com/varandrew/moor#api) · [MCP 2026-07-28 修订](https://blog.modelcontextprotocol.io/posts/2026-07-28/) · [MCP 工具规范](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) · [NuGet MCP 包规范](https://learn.microsoft.com/nuget/concepts/nuget-mcp)。
 - Serena Pool 现状来自本机仓库的 README、SerenaPool.csproj、Program.cs、StdioBridge.cs、LocalPipeServer.cs 和 WebDashboard.cs。[Serena Pool 仓库](https://github.com/QyQj/serena-pool)
 
-本稿是设计提案。产品名已定为 DotHerd，命令为 dotherd，NuGet 包 ID 尚未预留。包打样、宿主实现和 Windows 登录／故障恢复尚待原型验证。本机已有桥接器的 list 请求可通，acquire 遇到 MCP 协议握手错误；Serena 的端到端验收还需要先定位该错误。
+本稿是设计提案。产品名已定为 DotHerd，命令为 dotherd，NuGet 包 ID 尚未预留。M0 已验证工具包、同包桌面宿主和 Serena Pool 的实际 REPL 调用，产品级 Windows 登录与故障恢复待实现。首次 acquire 的握手错误已定位到 core 与慢启动 worker 的协议协商，归入 M6 作者侧联调。[M0 验证记录](README.md) · [握手错误复现](probes/P03/README.md)
