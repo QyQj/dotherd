@@ -8,6 +8,10 @@
     <SelfContained>false</SelfContained>
     <PackageType Condition="'$(McpFile)' != ''">DotnetTool;McpServer</PackageType>
   </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.4.0" />
+  </ItemGroup>
   <ItemGroup Condition="'$(RuntimeIdentifier)' == ''">
     <None Include="$(AppFile)" Pack="true" PackagePath=".dotherd/app.json" Condition="'$(AppFile)' != ''" />
     <None Include="$(McpFile)" Pack="true" PackagePath=".mcp/server.json" Condition="'$(McpFile)' != ''" />

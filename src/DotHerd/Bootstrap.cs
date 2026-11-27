@@ -5,7 +5,7 @@ using DotHerd;
 
 internal static class Bootstrap
 {
-    public const string Protocol = "2";
+    public const string Protocol = "5";
     public static string Version => typeof(Bootstrap).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion.Split('+')[0];
 
     public static async Task<int?> Forward(string[] args)

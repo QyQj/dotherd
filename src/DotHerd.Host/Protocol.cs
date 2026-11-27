@@ -22,9 +22,10 @@ public sealed record AppSpec(string Name, string Cwd, string Executable, string[
 }
 
 public sealed record InstallRequest(string Id, string? Version, string Cwd, string? Source, bool AsProcess,
-    string? Command, string[] Args, Dictionary<string,string> Inputs);
-public sealed record Request(string Command, string? Name = null, AppSpec? App = null, string? Action = null, InstallRequest? Install = null);
-public sealed record Reply(bool Ok, string Output, bool Confirm = false)
+    string? Command, string[] Args, Dictionary<string,string> Inputs, Dictionary<string,string>? SavedInputs = null);
+public sealed record Request(string Command, string? Name = null, AppSpec? App = null, string? Action = null, InstallRequest? Install = null,
+    string? Instance = null);
+public sealed record Reply(bool Ok, string Output, bool Confirm = false, int? ExitingPid = null)
 {
     public static Reply Data(object value) => new(true, JsonSerializer.Serialize(value, Wire.Json));
 }

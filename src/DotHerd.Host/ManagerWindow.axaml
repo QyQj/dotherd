@@ -1,0 +1,119 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="DotHerd.ManagerWindow"
+        Title="DotHerd" Width="1000" Height="650" MinWidth="680" MinHeight="460"
+        WindowStartupLocation="CenterScreen" AutomationProperties.Name="DotHerd">
+  <Window.Styles>
+    <Style Selector="Button.nav">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="Padding" Value="12,9" />
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="Button.nav.selected">
+      <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListAccentLowBrush}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.secondary">
+      <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseMediumBrush}" />
+    </Style>
+  </Window.Styles>
+  <Grid ColumnDefinitions="174,*" RowDefinitions="*,Auto">
+    <Border Grid.RowSpan="2" Padding="15,22" BorderThickness="0,0,1,0"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}"
+            Background="{DynamicResource SystemControlBackgroundAltMediumLowBrush}">
+      <StackPanel Spacing="6">
+        <StackPanel Orientation="Horizontal" Spacing="10" Margin="9,0,0,22">
+          <Image Source="avares://DotHerd.Host/Assets/DotHerd.png" Width="24" Height="24" />
+          <TextBlock Text="DotHerd" FontSize="20" FontWeight="SemiBold" />
+        </StackPanel>
+        <Button Name="ApplicationsNav" Classes="nav selected" Content="Applications" Click="ApplicationsClicked" />
+        <Button Name="McpNav" Classes="nav" Content="MCP services" Click="McpClicked" />
+        <Button Name="SettingsNav" Classes="nav" Content="Settings" Click="SettingsClicked" />
+      </StackPanel>
+    </Border>
+
+    <Grid Grid.Column="1" RowDefinitions="Auto,*" Margin="26,21,26,14">
+      <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,18">
+        <TextBlock Name="PageTitle" Text="Applications" FontSize="27" FontWeight="SemiBold" VerticalAlignment="Center" />
+        <Button Grid.Column="1" Name="InstallButton" Classes="accent" Content="Install package…" Click="InstallClicked" />
+      </Grid>
+
+      <Grid Grid.Row="1" Name="ApplicationPanel" ColumnDefinitions="225,18,*">
+        <Grid RowDefinitions="Auto,*">
+          <CheckBox Name="FailuresOnly" Content="Show failures only" Margin="0,0,0,5" Click="FilterClicked" />
+          <ListBox Grid.Row="1" Name="AppList" SelectionChanged="SelectionChanged"
+                   AutomationProperties.Name="Managed applications" Background="Transparent" />
+        </Grid>
+
+        <Border Grid.Column="2" Padding="21" CornerRadius="8" BorderThickness="1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+          <Grid>
+            <TextBlock Name="EmptyMessage" VerticalAlignment="Center" HorizontalAlignment="Center"
+                       TextWrapping="Wrap" Classes="secondary" />
+            <ScrollViewer Name="AppDetails" HorizontalScrollBarVisibility="Disabled">
+              <StackPanel Spacing="13">
+                <StackPanel Spacing="4">
+                  <TextBlock Name="AppTitle" FontSize="21" FontWeight="SemiBold" TextWrapping="Wrap" />
+                  <SelectableTextBlock Name="AppVersion" FontSize="13" />
+                </StackPanel>
+                <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="6">
+                  <TextBlock Text="Process" Classes="secondary" />
+                  <SelectableTextBlock Grid.Column="1" Name="ProcessState" TextWrapping="Wrap" />
+                  <TextBlock Grid.Row="1" Text="Latest failure" Classes="secondary" />
+                  <SelectableTextBlock Grid.Row="1" Grid.Column="1" Name="ProcessFailure" TextWrapping="Wrap" />
+                  <TextBlock Grid.Row="2" Name="PackageSourceLabel" Text="Source" Classes="secondary" />
+                  <SelectableTextBlock Grid.Row="2" Grid.Column="1" Name="PackageSource" TextWrapping="Wrap" />
+                </Grid>
+                <StackPanel Name="AppOperations" Spacing="10">
+                  <WrapPanel ItemSpacing="8" LineSpacing="8">
+                    <Button Name="StartButton" Content="Start" Click="StartClicked" />
+                    <Button Name="StopButton" Content="Stop" Click="StopClicked" />
+                    <Button Name="RestartButton" Content="Restart" Click="RestartClicked" />
+                    <Button Content="View logs" Click="LogsClicked" />
+                  </WrapPanel>
+                  <WrapPanel Name="AuthorActions" ItemSpacing="8" LineSpacing="8" />
+                  <CheckBox Name="SeparateTray" Content="Show a separate tray icon" Click="TrayClicked" />
+                  <WrapPanel ItemSpacing="8" LineSpacing="8">
+                    <Button Name="UpdateButton" Content="Update…" Click="UpdateClicked" />
+                    <Button Name="UninstallButton" Content="Uninstall…" Click="UninstallClicked" />
+                  </WrapPanel>
+                </StackPanel>
+
+                <StackPanel Name="McpDetails" Spacing="12">
+                  <Separator />
+                  <Grid ColumnDefinitions="120,*" RowDefinitions="Auto,Auto,Auto,Auto" RowSpacing="6">
+                    <TextBlock Text="Transport" Classes="secondary" />
+                    <SelectableTextBlock Grid.Column="1" Name="McpTransport" />
+                    <TextBlock Grid.Row="1" Text="Publication" Classes="secondary" />
+                    <SelectableTextBlock Grid.Row="1" Grid.Column="1" Name="McpPublication" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="2" Text="Protocol error" Classes="secondary" />
+                    <SelectableTextBlock Grid.Row="2" Grid.Column="1" Name="McpError" TextWrapping="Wrap" />
+                    <TextBlock Grid.Row="3" Text="Published tools" Classes="secondary" />
+                    <SelectableTextBlock Grid.Row="3" Grid.Column="1" Name="McpTools" TextWrapping="Wrap" />
+                  </Grid>
+                  <CheckBox Name="GatewayEnabled" Content="Publish through the gateway" Click="GatewayClicked" />
+                </StackPanel>
+              </StackPanel>
+            </ScrollViewer>
+          </Grid>
+        </Border>
+      </Grid>
+
+      <StackPanel Name="SettingsPanel" Grid.Row="1" Spacing="12" IsVisible="False">
+        <TextBlock Text="Windows login" Classes="section" />
+        <CheckBox Name="StartupEnabled" Content="Start DotHerd when I sign in" Click="StartupClicked" />
+      </StackPanel>
+    </Grid>
+
+    <Border Grid.Row="1" Grid.Column="1" Padding="26,10" BorderThickness="0,1,0,0"
+            BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+      <SelectableTextBlock Name="Feedback" TextWrapping="Wrap"
+                           AutomationProperties.LiveSetting="Polite" MinHeight="18" />
+    </Border>
+  </Grid>
+</Window>

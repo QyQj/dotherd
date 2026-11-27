@@ -207,9 +207,9 @@ try
     await Ok("stop", "crash");
     Console.WriteLine("PASS fifth failure survives host restart and manual start recovers");
     await Ok("stop", "stable");
-    await Ok("host", "exit");
+    await Ok("host", "exit", "--yes");
     Assert((string?)(await Status("stable"))["state"] == "stopped", "stopped state lost on reopen");
     Console.WriteLine("PASS host crash/reopen restores only desired applications");
     return 0;
 }
-finally { await Ok("host", "exit"); }
+finally { await Ok("host", "exit", "--yes"); }

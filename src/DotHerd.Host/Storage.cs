@@ -3,7 +3,9 @@ using System.Text.Json;
 
 namespace DotHerd;
 
-internal sealed record Registration(Guid Id, AppSpec App, bool WantRunning, int Failures, string? LastFailure = null, InstalledPackage? Package = null);
+internal sealed record Registration(Guid Id, AppSpec App, bool WantRunning, int Failures, string? LastFailure = null,
+    InstalledPackage? Package = null, string? DiscardVersion = null, bool Uninstalling = false, string? UpdateFailure = null,
+    bool GatewayEnabled = true, string? McpNamespace = null, string[]? RetiredVersions = null, bool? SeparateTray = null);
 
 internal sealed class Store(string root)
 {
@@ -19,6 +21,14 @@ internal sealed class Store(string root)
                 Path.GetFileNameWithoutExtension(path) != record.Id.ToString("N") || record.Failures is < 0 or > 5)
                 throw new InvalidDataException($"Invalid registration: {path}");
             record.App.Validate();
+            var inactive = (record.RetiredVersions ?? []).AsEnumerable();
+            if (record.DiscardVersion is { } discard) inactive = inactive.Append(discard);
+            if (inactive.Any(version => record.Package is null || string.IsNullOrWhiteSpace(version) ||
+                PackageFeed.ValidateIdentity(record.Package.Id, version)?.ToNormalizedString() != version ||
+                string.Equals(version, record.Package.Version, StringComparison.OrdinalIgnoreCase)) ||
+                inactive.Distinct(StringComparer.OrdinalIgnoreCase).Count() != inactive.Count() ||
+                record.Uninstalling && record.WantRunning)
+                throw new InvalidDataException($"Invalid pending operation: {path}");
             yield return record;
         }
     }
@@ -34,6 +44,8 @@ internal sealed class Store(string root)
         }
         File.Move(temp, path, true);
     }
+
+    public void Remove(Guid id) => File.Delete(Path.Combine(apps, $"{id:N}.json"));
 }
 
 internal sealed class AppLog(string directory, Guid id) : IDisposable

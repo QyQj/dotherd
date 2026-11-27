@@ -2,7 +2,7 @@ using Microsoft.Win32;
 
 namespace DotHerd;
 
-internal sealed class LoginStartup(Profile profile)
+public sealed class LoginStartup(Profile profile)
 {
     private const string RunKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
     private readonly object sync = new();

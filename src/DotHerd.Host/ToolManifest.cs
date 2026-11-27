@@ -8,7 +8,7 @@ using NuGet.Versioning;
 namespace DotHerd;
 
 internal sealed record InstalledPackage(string Id, string Version, string Source, string Command, string Directory,
-    string DisplayName, JsonObject? Tray, McpDeclaration? Mcp);
+    string DisplayName, JsonObject? Tray, McpDeclaration? Mcp, bool? AsProcess = null);
 internal sealed record McpDeclaration(string Transport, bool OnConnection, string[] Args, string? Url, string? Namespace,
     Dictionary<string,string> Environment, Dictionary<string,string> Headers, Dictionary<string,string> InputEnvironment);
 internal sealed record ToolPlan(string? Command, string[] Commands, string[] Args, string Readiness, string DisplayName,
@@ -116,7 +116,10 @@ internal static class ToolManifest
                 if (mcp == null) throw Error("conflict: kind and .mcp/server.json");
                 if (mcp.Transport != declaration.Transport) throw Error("conflict: mcp.transport");
                 if (mcp.Url != declaration.Url) throw Error("conflict: mcp.url");
-                if (!mcp.Args.SequenceEqual(declaration.Args)) throw Error("conflict: mcp.args/packageArguments");
+                // A resident stdio bridge can require an existing core while the standalone command can start it.
+                bool connectOnly = mcp is { Transport: "stdio", OnConnection: false } &&
+                    mcp.Args is [.., "--connect-only"] && mcp.Args[..^1].SequenceEqual(declaration.Args);
+                if (!connectOnly && !mcp.Args.SequenceEqual(declaration.Args)) throw Error("conflict: mcp.args/packageArguments");
                 mcp = mcp with { Environment = declaration.Environment, Headers = declaration.Headers, InputEnvironment = declaration.InputEnvironment };
             }
         }

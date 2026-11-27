@@ -10,7 +10,7 @@
     <SelfContained>false</SelfContained>
     <ToolCommandRunner>dotnet</ToolCommandRunner>
     <ToolEntryPoint>DotHerd.dll</ToolEntryPoint>
-    <Version>0.1.0-preview.2</Version>
+    <Version>0.1.0-rc.1</Version>
     <Description>Manage local Windows applications with a per-user desktop host.</Description>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>

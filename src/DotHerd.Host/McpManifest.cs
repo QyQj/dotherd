@@ -36,7 +36,8 @@ internal static class McpManifest
         string? Value(JsonObject input, string? key)
         {
             string? literal = input.Text("value") ?? input.Text("default");
-            if (key != null && request.Inputs.TryGetValue(key, out var env))
+            if (key != null && (request.Inputs.TryGetValue(key, out var env) ||
+                request.SavedInputs?.TryGetValue(key, out env) == true))
             {
                 bindings[key] = env;
                 return "{" + key + "}";

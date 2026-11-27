@@ -37,13 +37,7 @@ internal sealed class ChildProcess : IDisposable
         var variables = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (DictionaryEntry pair in Environment.GetEnvironmentVariables())
             variables[(string)pair.Key] = (string)pair.Value!;
-        string Expand(string value) => mcp == null || mcp.InputEnvironment.Count == 0 ? value :
-            System.Text.RegularExpressions.Regex.Replace(value, @"\{([^{}]+)\}", match =>
-            {
-                if (!mcp.InputEnvironment.TryGetValue(match.Groups[1].Value, out var name)) return match.Value;
-                string? input = Environment.GetEnvironmentVariable(name) ?? Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.User);
-                return !string.IsNullOrEmpty(input) ? input : throw new ArgumentException($"Missing environment input: {name}");
-            });
+        string Expand(string value) => McpInputs.Expand(mcp, value);
         if (mcp != null)
             foreach (var (key, value) in mcp.Environment) variables[key] = Expand(value);
         variables["DOTHERD_CONTROL_PIPE"] = channel.Pipe;
@@ -71,7 +65,7 @@ internal sealed class ChildProcess : IDisposable
     }
 
     // Encode one argv element for the Windows C runtime, including empty strings and trailing backslashes.
-    private static string Quote(string value)
+    internal static string Quote(string value)
     {
         var result = new StringBuilder("\"");
         int slashes = 0;

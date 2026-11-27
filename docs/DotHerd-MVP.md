@@ -28,7 +28,7 @@ dotherd
 </ItemGroup>
 ```
 
-以下是 **Serena Pool 接入后的拟议清单**。当前发布包尚未实现示例中的托管参数和控制协议。
+以下清单展示本地候选 `SerenaPool@0.3.1` 的必要字段及托盘动作。独立客户端按标准 MCP 清单传入 `mcp`，DotHerd 按托管清单传入 `mcp --connect-only`。对于常驻 core 的 stdio bridge，托管参数可以在相同的标准参数末尾追加 `--connect-only`。其余入口、传输或参数冲突按安装错误处理。
 
 ```json
 {
@@ -120,9 +120,9 @@ CLI 和桌面宿主是两个进程角色；短命令通过本地 IPC 调用唯�
 
 ## 7. Serena Pool 接入示例
 
-**本机仓库的现状**：包 ID 是 `SerenaPool`，工具入口是 `serena-pool`。每个 MCP 客户端启动一个 `serena-pool mcp` stdio bridge，多个 bridge 通过当前用户的命名管道连接共享 core。默认 `http://127.0.0.1:32980/` 是 Web 管理面板。这个地址不能作为 agent 的 MCP 地址。core 已有前台入口 `--core`，但默认 bridge 在连接失败时会自行拉起 core。core 在无客户端且池空闲时会在 15 秒的检查中退出。Windows 托盘由 dashboard 进程创建。
+独立模式沿用 `serena-pool mcp`。多个 stdio bridge 通过当前用户的命名管道共享 core，首个 bridge 可以启动 core。独立 core 每 15 秒检查一次，池空闲且没有客户端时退出。默认的 `http://127.0.0.1:32980/` 提供管理页面。agent 连接 DotHerd 导出的 stdio 命令或 HTTP 网关地址。
 
-**作者改动建议**：
+本地候选采用以下受管模式。
 
 1. 沿用 `DotnetTool;McpServer` 和现有 `.mcp/server.json`，按第 2 节将 `.dotherd/app.json` 打入顶层包。新增公开的前台参数 `--supervised`。复用现有 core 路径和按用户、端口的单实例保护。此模式取消 **core 自身的空闲退出**；worker 空闲回收、租约过期仍由 Serena Pool 负责。如发现同端口已有独立 core，报告冲突并给出迁移提示，避免强杀已有会话。
 2. 受管 core 就绪时发送 `ready`，管理命名管道和 MCP 管道开放后才报告可用。若启用 dashboard，由 core 启动沿用现有 dashboard 的子进程，单独抑制它自建的 Windows 托盘。现有 `Pool__WebDashboard=false` 会连管理页面一起关闭，因此要新增只抑制旧托盘的行为。`open` 动作打开当前配置的 dashboard；dashboard 未启用时禁用该动作。
@@ -161,4 +161,4 @@ CLI 和桌面宿主是两个进程角色；短命令通过本地 IPC 调用唯�
 - MCP 单入口和协议：[Moor 网关](https://github.com/varandrew/moor#api) · [MCP 2026-07-28 修订](https://blog.modelcontextprotocol.io/posts/2026-07-28/) · [MCP 工具规范](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) · [NuGet MCP 包规范](https://learn.microsoft.com/nuget/concepts/nuget-mcp)。
 - Serena Pool 现状来自本机仓库的 README、SerenaPool.csproj、Program.cs、StdioBridge.cs、LocalPipeServer.cs 和 WebDashboard.cs。[Serena Pool 仓库](https://github.com/QyQj/serena-pool)
 
-本稿是设计提案。产品名已定为 DotHerd，命令为 dotherd，NuGet 包 ID 尚未预留。M0 验证了工具包、同包桌面宿主和 Serena Pool 的实际 REPL 调用。M1 实现了本地程序守护和控制协议 v1。M2 实现了从选定来源安装精确版本、两种 CLI 入口共用持久宿主，以及登录注册与开关。版本切换、卸载和操作中断恢复归入 M3。首次 acquire 的握手错误已定位到 core 与慢启动 worker 的协议协商，归入 M6 作者侧联调。[M0 至 M2 验证记录](验证记录.md) · [握手错误复现](P03-Serena-Pool直连.md)
+本设计已落地为 Windows x64 本地候选 DotHerd `0.1.0-rc.1` 与 SerenaPool `0.3.1`。八项场景、登录与托盘的实际测试方式和复验命令见[初版验收记录](验证记录.md#m5m7-windows-初版验收)。正式发布时另行确认 NuGet 包 ID 和发布权限。

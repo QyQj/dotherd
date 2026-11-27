@@ -10,38 +10,72 @@ const string usage = """
     dotherd add <name> [--cwd <directory>] [--readiness process|notify] [--action <id>]... -- <executable> [args...]
     dotherd install <package>[@version] [--source <feed>] [--yes] [--input-env <input>=<variable>]
     dotherd install <package> --as-process --command <command> -- [args...]
+    dotherd update <package>[@version] [--source <feed>] [--yes] [--input-env <input>=<variable>]
+    dotherd uninstall <name>
+    dotherd disable
+    dotherd mcp list [name]
+    dotherd mcp enable|disable <name>
+    dotherd mcp config [--transport http --client <name>]
+    dotherd mcp connect
     dotherd startup on|off|status
     dotherd start|stop|restart|logs <name>
+    dotherd tray <name> on|off|default
     dotherd status [name]
     dotherd action <name> <id>
-    dotherd host exit
+    dotherd host exit [--yes]
     """;
 try
 {
     if (args is ["--help"] or ["-h"]) { Console.WriteLine(usage); return 0; }
     if (args is ["--version"]) { Console.WriteLine(Bootstrap.Version); return 0; }
     if (args is ["--cli-protocol"]) { Console.WriteLine(Bootstrap.Protocol); return 0; }
-    bool yes = false;
+    bool yes = args is ["host", "exit", "--yes"];
     var request = args switch
     {
-        [] => new Request("initialize"),
-        ["install", _, ..] => ParseInstall(args, out yes),
+        [] => new Request("show"),
+        ["install" or "update", _, ..] => ParseInstall(args, out yes),
+        ["uninstall", var name] => new Request("uninstall", name),
+        ["disable"] => new Request("disable"),
+        ["mcp", "connect"] => new Request("mcp-connect"),
+        ["mcp", "list"] => new Request("mcp-list"),
+        ["mcp", "list", var name] => new Request("mcp-list", name),
+        ["mcp", "enable" or "disable", var name] => new Request($"mcp-{args[1]}", name),
+        ["mcp", "config"] or ["mcp", "config", "--transport", "stdio"] => new Request("mcp-config-stdio"),
+        ["mcp", "config", "--transport", "http", "--client", var name] => new Request("mcp-config-http", name),
         ["startup", "on" or "off" or "status"] => new Request("startup", Action: args[1]),
         ["add", _, ..] => ParseAdd(args),
         ["start" or "stop" or "restart" or "logs" or "status", var name] => new Request(args[0], name),
         ["status"] => new Request("status"),
         ["action", var name, var id] => new Request("action", name, Action: id),
-        ["host", "exit"] => new Request("host-exit"),
+        ["tray", var name, "on" or "off" or "default"] => new Request("tray", name, Action: args[2]),
+        ["host", "exit"] or ["host", "exit", "--yes"] => new Request("host-exit-preview"),
         _ => throw new ArgumentException(usage)
     };
     if (await Bootstrap.Forward(args) is int forwarded) return forwarded;
+    if (request.Command == "mcp-config-stdio")
+    {
+        Console.WriteLine(JsonSerializer.Serialize(new { mcpServers = new { dotherd = new { command = "dotherd", args = new[] { "mcp", "connect" } } } }, Wire.Json));
+        return 0;
+    }
     var profile = Profile.Open();
     using var pipe = new NamedPipeClientStream(".", profile.Pipe, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
     try { await pipe.ConnectAsync(150); }
     catch (TimeoutException)
     {
-        if (request.Command == "host-exit") { Console.WriteLine("Host is offline."); return 0; }
-        using var candidate = Process.Start(new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, "DotHerd.Host.exe")) { UseShellExecute = true });
+        if (request.Command is "host-exit-preview" or "disable")
+        {
+            using var mutex = new Mutex(false, @"Local\" + profile.Pipe, out bool offline);
+            if (offline)
+            {
+                if (request.Command == "disable") new LoginStartup(profile).Configure("off");
+                Console.WriteLine(request.Command == "disable" ? "Login startup disabled. Host is offline." : "Host is offline.");
+                return 0;
+            }
+        }
+        else
+        {
+            using var candidate = Process.Start(new ProcessStartInfo(Path.Combine(AppContext.BaseDirectory, "DotHerd.Host.exe")) { UseShellExecute = true });
+        }
         await pipe.ConnectAsync(10000);
     }
     using var writer = Wire.Writer(pipe);
@@ -50,13 +84,30 @@ try
     async Task<Reply> ReadReply() => JsonSerializer.Deserialize<Reply>(await reader.ReadLineAsync() ?? throw new IOException("Host disconnected."), Wire.Json)
         ?? throw new IOException("Missing host response.");
     var reply = await ReadReply();
+    if (request.Command == "mcp-connect" && reply.Ok)
+    {
+        var input = Console.OpenStandardInput().CopyToAsync(pipe);
+        var output = pipe.CopyToAsync(Console.OpenStandardOutput());
+        await await Task.WhenAny(input, output);
+        return 0;
+    }
     if (reply.Confirm)
     {
         Console.Error.WriteLine(reply.Output);
-        Console.Error.WriteLine("Register this MCP service? [y/N] (or pass --yes)");
+        Console.Error.WriteLine(request.Command == "host-exit-preview" ? "Confirm exit? [y/N] (or pass --yes)" :
+            request.Command == "update" ? "Confirm the new MCP service declaration? [y/N] (or pass --yes)" :
+            "Register this MCP service? [y/N] (or pass --yes)");
         var consent = yes || Console.ReadLine()?.Trim().ToLowerInvariant() is "yes" or "y";
         await writer.WriteLineAsync(consent ? "yes" : "no");
         reply = await ReadReply();
+    }
+    if (reply.Ok && reply.ExitingPid is int pid)
+    {
+        Process? exiting;
+        try { exiting = Process.GetProcessById(pid); }
+        catch (ArgumentException) { exiting = null; }
+        using (exiting)
+            if (exiting is not null) await exiting.WaitForExitAsync();
     }
     (reply.Ok ? Console.Out : Console.Error).WriteLine(reply.Output);
     return reply.Ok ? 0 : 1;
@@ -65,6 +116,7 @@ catch (Exception e) { Console.Error.WriteLine(e.Message); return 1; }
 
 static Request ParseInstall(string[] argv, out bool yes)
 {
+    bool installing = argv[0] == "install";
     string[] identity = argv[1].Split('@');
     if (identity.Length > 2 || identity.Any(string.IsNullOrWhiteSpace)) throw new ArgumentException("Expected package ID or ID@exact-version.");
     string? source = null, command = null;
@@ -80,8 +132,8 @@ static Request ParseInstall(string[] argv, out bool yes)
         switch (flag)
         {
             case "--source": source = Value(); break;
-            case "--command": command = Value(); break;
-            case "--as-process": process = true; break;
+            case "--command" when installing: command = Value(); break;
+            case "--as-process" when installing: process = true; break;
             case "--yes": yes = true; break;
             case "--input-env":
                 var pair = Value().Split('=', 2);
@@ -92,7 +144,7 @@ static Request ParseInstall(string[] argv, out bool yes)
         }
     }
     if (process != (command != null)) throw new ArgumentException("--as-process and --command must be specified together.");
-    return new("install", Install: new(identity[0], identity.ElementAtOrDefault(1), Environment.CurrentDirectory, source, process, command, extra, inputs));
+    return new(argv[0], Install: new(identity[0], identity.ElementAtOrDefault(1), Environment.CurrentDirectory, source, process, command, extra, inputs));
 }
 
 static Request ParseAdd(string[] args)

@@ -1,4 +1,5 @@
 #requires -Version 7.4
+param([string] $ManagerSource)
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $true
 $repo = (Resolve-Path "$PSScriptRoot/../..").Path
@@ -6,7 +7,7 @@ $tempRoot = [IO.Directory]::CreateDirectory((Join-Path $repo '../temp')).FullNam
 $name = 'M2-' + [guid]::NewGuid().ToString('N').Substring(0,12)
 $run = (New-Item -ItemType Directory -Path (Join-Path $tempRoot $name)).FullName
 $manager, $a, $b, $caller = 'manager','A','B','caller' | ForEach-Object { [IO.Directory]::CreateDirectory("$run/$_").FullName }
-$version = '0.1.0-preview.2'
+$version = '0.1.0-rc.1'
 $fixture = "$PSScriptRoot/Fixture"
 $profile = "$run/h"
 $cli = "$run/u/.dotnet/tools/dotherd.exe"
@@ -26,7 +27,7 @@ function Pack($id, $v, $dest, $app = $null, $mcp = $null, [string[]]$extra = @()
         $mcp | Set-Content -LiteralPath "$run/server.json" -Encoding utf8NoBOM
         $opts += "-p:McpFile=$run/server.json"
     }
-    dotnet pack $fixture -c Release --artifacts-path "$run/f-$id-$v-$(Split-Path $dest -Leaf)" --source $dest -o $dest @opts @extra | Out-Host
+    dotnet pack $fixture -c Release --artifacts-path "$run/f-$id-$v-$(Split-Path $dest -Leaf)" -o $dest @opts @extra | Out-Host
 }
 function Call([string[]]$arguments, [string]$failure, [string]$stdin = '', [string]$program = $cli) {
     $p = [Diagnostics.ProcessStartInfo]::new($program)
@@ -58,7 +59,8 @@ function Mcp($id, $body) { '{"packages":[{"registryType":"nuget","identifier":"'
 
 try {
     # Build dependencies from the repository configuration; install every tool only from the test feeds.
-    dotnet pack "$repo/src/DotHerd" -c Release --artifacts-path "$run/build" -p:EnableRuntimePackDownload=false -o $manager | Out-Host
+    if ($ManagerSource) { $manager = (Resolve-Path -LiteralPath $ManagerSource).Path }
+    else { dotnet pack "$repo/src/DotHerd" -c Release --artifacts-path "$run/build" -p:EnableRuntimePackDownload=false -o $manager | Out-Host }
     $env:DOTHERD_HOME = $profile
     $env:DOTNET_CLI_HOME = "$run/u"
     $env:NUGET_PACKAGES = "$run/n"
@@ -80,13 +82,21 @@ try {
     Pack M2.Fails 1.0.0 $a ($managed.Replace('"serve","two words"','"fail"'))
     $standardArgs = ',"packageArguments":[{"type":"positional","value":"mcp"}],"environmentVariables":[{"name":"API_KEY","isRequired":true,"isSecret":true}]'
     Pack M2.Stdio 1.0.0 $a $null (Mcp M2.Stdio $standardArgs)
-    $http = '{"packages":[{"registryType":"nuget","identifier":"M2.Http","transport":{"type":"streamable-http","url":"http://127.0.0.1:{port}/mcp","headers":[{"name":"Authorization","isRequired":true,"isSecret":true}]},"packageArguments":[{"type":"positional","valueHint":"port","default":"8765"}]}]}'
+    $fixtureListener = [Net.Sockets.TcpListener]::new([Net.IPAddress]::Loopback, 0)
+    $fixtureListener.Start()
+    try { $fixturePort = $fixtureListener.LocalEndpoint.Port } finally { $fixtureListener.Stop() }
+    $http = '{"packages":[{"registryType":"nuget","identifier":"M2.Http","transport":{"type":"streamable-http","url":"http://127.0.0.1:{port}/mcp","headers":[{"name":"Authorization","isRequired":true,"isSecret":true}]},"packageArguments":[{"type":"positional","valueHint":"port","default":"' + $fixturePort + '"}]}]}'
     Pack M2.Http 1.0.0 $a $null $http
     Pack M2.Remote 1.0.0 $a $null '{"remotes":[{"type":"streamable-http","url":"https://example.org/mcp"}]}'
     $dual = '{"schemaVersion":1,"command":"m2-worker","readiness":"notify","kind":"mcp","mcp":{"transport":"stdio","args":["bridge"]}}'
     $bridge = ',"packageArguments":[{"type":"positional","value":"bridge"}]'
     Pack M2.Dual 1.0.0 $a $dual (Mcp M2.Dual $bridge)
+    Pack M2.BrokenDual 1.0.0 $a '{' (Mcp M2.BrokenDual $bridge)
     Pack M2.Conflict 1.0.0 $a $dual (Mcp M2.Conflict ($bridge.Replace('bridge','different')))
+    $connectOnly = $dual.Replace('["bridge"]','["bridge","--connect-only"]')
+    Pack M2.ConnectOnly 1.0.0 $a $connectOnly (Mcp M2.ConnectOnly $bridge)
+    Pack M2.ConnectConflict 1.0.0 $a $connectOnly (Mcp M2.ConnectConflict ($bridge.Replace('bridge','different')))
+    Pack M2.TransportConflict 1.0.0 $a $dual $http.Replace('M2.Http','M2.TransportConflict')
     Pack DotHerd 0.0.1 $a $null $null @('-p:ToolCommandName=dotherd')
     [IO.File]::WriteAllText("$caller/NuGet.Config", "<configuration><packageSources><clear/><add key='A' value='$a'/><add key='B' value='$b'/></packageSources></configuration>")
     Set-Location -LiteralPath $caller
@@ -110,11 +120,12 @@ try {
     Assert ((Call @('install','M2.Managed@1.1.0') | ConvertFrom-Json).state -eq 'stopped') 'reinstall started a stopped app'
     Call @('install','M2.Managed@1.0.0') 'update' | Out-Null
     Assert ((State M2.Managed).state -eq 'stopped') 'version mismatch restarted app'
-    Call @('host','exit') | Out-Null
+    Call @('host','exit','--yes') | Out-Null
     $started = Invoke-CimMethod -ClassName Win32_Process -MethodName Create -Arguments @{ CommandLine = $actual }
     Assert ($started.ReturnValue -eq 0) 'Run command failed to launch'
     Assert ((State M2.Managed).state -eq 'stopped' -and (Get-Process -Id $started.ProcessId).Path -eq $hostPath) 'direct login launch or stopped intent'
     Call @('startup','off') | Out-Null
+    Call @('host','exit','--yes') | Out-Null
     $again = (& dnx @dnx install M2.Managed) | ConvertFrom-Json
     Assert ($again.state -eq 'stopped' -and !(Call @('startup','status') | ConvertFrom-Json).enabled) 'dnx/global reuse re-enabled startup'
     'PASS clean dnx bootstrap, persistent Run target, compatible global reuse, exact source/version, stopped idempotency'
@@ -128,11 +139,17 @@ try {
     Assert ($rid.state -eq 'ready' -and $rid.executable.EndsWith('.exe') -and (Call @('logs','M2.Rid')) -match 'origin-A') 'RID concrete entry'
     foreach ($bad in @{
         'M2.Rid.win-x64'='top-level';'M2.Library'='no independently installable';'M2.Broken'='app.json';'M2.Schema'='schemaVersion';
-        'M2.Command'='command';'M2.Icon'='tray.icon';'M2.Conflict'='mcp.args';'M2.Remote'='remote endpoints'
+        'M2.Command'='command';'M2.Icon'='tray.icon';'M2.Conflict'='mcp.args';'M2.Remote'='remote endpoints';
+        'M2.ConnectConflict'='mcp.args';'M2.TransportConflict'='mcp.transport'
     }.GetEnumerator()) {
-        Call @('install',$bad.Key,'--source',$a) $bad.Value | Out-Null
+        $options = @('install',$bad.Key,'--source',$a)
+        if ($bad.Key -eq 'M2.TransportConflict') { $options += '--input-env','Authorization=M2_FIXTURE_VALUE' }
+        Call $options $bad.Value | Out-Null
         Call @('status',$bad.Key) 'Unknown application' | Out-Null
     }
+    Call @('install','M2.BrokenDual','--source',$a,'--yes') '\.dotherd/app\.json' | Out-Null
+    Call @('status','M2.BrokenDual') 'Unknown application' | Out-Null
+    'PASS malformed managed manifest stops registration even with a valid standard MCP declaration'
     Call @('install','M2.Fails','--source',$a) 'code 23' | Out-Null
     Assert ((State M2.Fails).package.version -eq '1.0.0' -and (Call @('logs','M2.Fails')) -match 'code 23') 'lost failed installation'
     Call @('stop','M2.Fails') | Out-Null
@@ -144,20 +161,26 @@ try {
     Assert ($declined -match 'stdio' -and $declined -match 'mcp' -and $declined -match 'API_KEY' -and $declined -notmatch $env:M2_FIXTURE_VALUE) 'incorrect MCP preview'
     Call @('status','M2.Stdio') 'Unknown application' | Out-Null
     $service = Call $confirm $null 'y' | ConvertFrom-Json
-    Assert ($service.state -eq 'registered' -and !$service.pid -and $service.package.mcp.args[0] -eq 'mcp') 'stdio registration launched a process'
+    Assert ($service.state -eq 'connectable' -and !$service.pid -and $service.package.mcp.args[0] -eq 'mcp') 'stdio probe or idle lifecycle'
     $serviceFile = Get-ChildItem "$profile/apps/*.json" | Where-Object { (Get-Content -Raw $_ | ConvertFrom-Json).app.name -eq 'M2.Stdio' }
     Assert ((Get-Content -Raw $serviceFile) -notmatch $env:M2_FIXTURE_VALUE) 'secret persisted'
     Call @('stop','M2.Stdio') | Out-Null
     Assert ((Install M2.Stdio).state -eq 'stopped' -and !(State M2.Stdio).wantRunning) 'reinstall enabled a stopped stdio service'
     $both = Install M2.Dual
     Assert ($both.state -eq 'ready' -and !$both.package.mcp.onConnection -and $both.package.mcp.args[0] -eq 'bridge') 'resident MCP and bridge mixed'
+    $connect = Install M2.ConnectOnly
+    Assert ($connect.state -eq 'ready' -and !$connect.package.mcp.onConnection -and
+        ($connect.package.mcp.args -join ' ') -ceq 'bridge --connect-only') 'resident connect-only arguments were lost'
     Call @('install','M2.Http','--source',$a,'--yes') 'required input Authorization' | Out-Null
     $web = Install M2.Http @('--yes','--input-env','Authorization=M2_FIXTURE_VALUE')
-    Assert ($web.state -eq 'running' -and $web.package.mcp.url -eq 'http://127.0.0.1:8765/mcp' -and
+    Assert ($web.state -eq 'running' -and $web.package.mcp.url -eq "http://127.0.0.1:$fixturePort/mcp" -and
         $web.package.mcp.headers.Authorization -eq '{Authorization}') 'local HTTP inputs or URL'
     'PASS required input, MCP preview/confirmation, idle stdio, loopback HTTP and dual-manifest resident MCP'
 
-    Call @('host','exit') | Out-Null
+    . "$PSScriptRoot/../M3/scenarios.ps1"
+    . "$PSScriptRoot/../M4/scenarios.ps1"
+
+    Call @('host','exit','--yes') | Out-Null
     $env:DOTHERD_HOME = "$run/g"
     $env:DOTNET_CLI_HOME = "$run/guser"
     dotnet tool install -g DotHerd --version "[$version]" --source $manager | Out-Host
@@ -169,15 +192,16 @@ try {
         $selected = Call @('install','M2.Managed@1.1.0','--source','A') $null '' $globalCli | ConvertFrom-Json
         Assert ($selected.package.source -eq $a -and (Call @('logs','M2.Managed') $null '' $globalCli) -match 'origin-A') 'feed B leaked into A'
     } finally {
-        Call @('startup','off') $null '' $globalCli | Out-Null
-        Call @('host','exit') $null '' $globalCli | Out-Null
+        Call @('disable') $null '' $globalCli | Out-Null
+        dotnet tool uninstall -g DotHerd | Out-Null
+        Assert (!(Test-Path -LiteralPath $globalCli)) 'Global uninstall after disable left the CLI installed'
     }
     $env:DOTNET_CLI_HOME = "$run/legacy"
     $env:DOTHERD_HOME = "$run/legacy-profile"
     dotnet tool install -g DotHerd --version '[0.0.1]' --source $a | Out-Host
     $errorText = Call (@('dnx') + $dnx + @('install','M2.Plain','--source',$a)) 'global DotHerd 0.0.1.*dotnet tool update' '' (Get-Command dotnet).Source
     Assert (!(Test-Path $env:DOTHERD_HOME) -and $errorText.Contains($version)) 'incompatible dnx initialized host or omitted versions'
-    'PASS clean global install, ambiguous feeds, same-version source isolation and incompatible global diagnostic'
+    'PASS clean global install, ambiguous feeds, same-version source isolation, disable before global uninstall and incompatible global diagnostic'
 } finally {
     Set-Location $original
     try {
@@ -190,7 +214,7 @@ try {
             $key = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Microsoft\Windows\CurrentVersion\Run',$true)
             if ($key) { try { $key.DeleteValue($ownKey,$false) } finally { $key.Dispose() } }
             $entry = "$env:DOTNET_CLI_HOME/.dotnet/tools/dotherd.exe"
-            if (Test-Path $entry) { Call @('host','exit') $null '' $entry | Out-Null }
+            if (Test-Path $entry) { Call @('host','exit','--yes') $null '' $entry | Out-Null }
         }
     } finally {
         foreach ($key in $saved.Keys) { [Environment]::SetEnvironmentVariable($key, $saved[$key]) }

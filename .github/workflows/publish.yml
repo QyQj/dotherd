@@ -1,0 +1,172 @@
+name: Publish packages
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      github_packages_run_id:
+        description: Tagged release run ID to publish to GitHub Packages only
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  pack:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: windows-2025
+    env:
+      DOTNET_NOLOGO: 'true'
+    outputs:
+      version: ${{ steps.pack.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: |
+            10.0.x
+            11.0.100
+      - name: Build and pack for Windows x64
+        id: pack
+        shell: pwsh
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          '{"sdk":{"version":"11.0.100","rollForward":"disable"}}' | Set-Content global.json -Encoding utf8NoBOM
+          $project = 'src/DotHerd/DotHerd.csproj'
+          $version = (dotnet msbuild $project -nologo -getProperty:PackageVersion -p:Configuration=Release | Out-String).Trim()
+          if (!$version -or $version -match '[\r\n]') {
+            throw 'MSBuild did not return a single package version.'
+          }
+          if ($env:GITHUB_REF_TYPE -eq 'tag' -and $env:GITHUB_REF_NAME -cne "v$version") {
+            throw "Tag $env:GITHUB_REF_NAME must match the package version v$version."
+          }
+          $feed = Join-Path $env:RUNNER_TEMP 'nuget'
+          $repositoryUrl = "$env:GITHUB_SERVER_URL/$env:GITHUB_REPOSITORY"
+          dotnet pack $project -c Release --disable-build-servers -o $feed `
+            -p:ContinuousIntegrationBuild=true -p:EnableRuntimePackDownload=false `
+            "-p:RepositoryUrl=$repositoryUrl" -p:RepositoryType=git
+
+          if (@(Get-ChildItem -LiteralPath $feed -Filter '*.nupkg' -File).Count -ne 2) {
+            throw 'Expected two packages: DotHerd and DotHerd.win-x64.'
+          }
+          foreach ($id in 'DotHerd.win-x64', 'DotHerd') {
+            $archive = [IO.Compression.ZipFile]::OpenRead((Join-Path $feed "$id.$version.nupkg"))
+            try {
+              $reader = [IO.StreamReader]::new($archive.GetEntry("$id.nuspec").Open())
+              try { [xml]$spec = $reader.ReadToEnd() } finally { $reader.Dispose() }
+              if ($spec.package.metadata.id -cne $id -or $spec.package.metadata.version -cne $version) {
+                throw "Unexpected package identity for $id."
+              }
+              if ($spec.package.metadata.repository.url -cne $repositoryUrl -or $spec.package.metadata.repository.type -cne 'git') {
+                throw "Missing Git repository association for $id."
+              }
+            } finally { $archive.Dispose() }
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+      - name: Install the packaged tool from an isolated feed
+        shell: pwsh
+        env:
+          PACKAGE_VERSION: ${{ steps.pack.outputs.version }}
+        run: |
+          $PSNativeCommandUseErrorActionPreference = $true
+          $check = Join-Path $env:RUNNER_TEMP 'tool-check'
+          $feed = Join-Path $env:RUNNER_TEMP 'nuget'
+          New-Item -ItemType Directory -Path $check | Out-Null
+          $env:NUGET_PACKAGES = Join-Path $check 'packages'
+          $env:DOTNET_CLI_HOME = Join-Path $check 'cli-home'
+          $env:DOTHERD_HOME = Join-Path $check 'profile'
+          $config = Join-Path $check 'NuGet.Config'
+          $source = [Security.SecurityElement]::Escape($feed)
+          "<configuration><packageSources><clear/><add key='local' value='$source'/></packageSources></configuration>" | Set-Content -LiteralPath $config
+          $tools = Join-Path $check 'tools'
+          dotnet tool install DotHerd --version "[$env:PACKAGE_VERSION]" --tool-path $tools --configfile $config
+          $cli = Join-Path $tools 'dotherd.exe'
+          if ((& $cli --version).Trim() -cne $env:PACKAGE_VERSION) { throw 'Packaged CLI version differs from the package.' }
+          & $cli --help
+          if (Test-Path -LiteralPath $env:DOTHERD_HOME) { throw 'Packaged help/version unexpectedly initialized the profile.' }
+      - uses: actions/upload-artifact@v4
+        if: github.event_name == 'push' && github.ref_type == 'tag'
+        with:
+          name: nuget
+          path: ${{ runner.temp }}/nuget/*.nupkg
+          if-no-files-found: error
+          overwrite: true
+
+  publish:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: pack
+    runs-on: ubuntu-latest
+    environment: nuget
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget
+          path: packages
+      - name: NuGet login
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: Ejy
+      - name: Push the RID package, then the tool package
+        env:
+          PACKAGE_VERSION: ${{ needs.pack.outputs.version }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
+        run: |
+          for id in DotHerd.win-x64 DotHerd; do
+            dotnet nuget push "packages/$id.$PACKAGE_VERSION.nupkg" --source https://api.nuget.org/v3/index.json --api-key "$NUGET_API_KEY" --skip-duplicate
+          done
+
+  publish-github:
+    needs: pack
+    if: >-
+      ${{ !cancelled() &&
+          ((github.event_name == 'push' && github.ref_type == 'tag' && needs.pack.result == 'success') ||
+           github.event_name == 'workflow_dispatch') }}
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      packages: write
+    steps:
+      - name: Select a tagged release run
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_RUN_ID: ${{ inputs.github_packages_run_id }}
+        run: |
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            [[ "$REQUESTED_RUN_ID" =~ ^[1-9][0-9]*$ ]]
+            release_run=$(gh api "repos/$GITHUB_REPOSITORY/actions/runs/$REQUESTED_RUN_ID")
+            tag=$(jq -er 'select(.event == "push" and .status == "completed" and (.path | split("@")[0]) == ".github/workflows/publish.yml") | .head_branch' <<< "$release_run")
+            run_id=$REQUESTED_RUN_ID
+          else
+            tag=$GITHUB_REF_NAME
+            run_id=$GITHUB_RUN_ID
+          fi
+          [[ "$tag" == v?* ]]
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+          echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget
+          path: packages
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.release.outputs.run_id }}
+      - name: Push the RID package, then the tool package
+        env:
+          PACKAGE_VERSION: ${{ steps.release.outputs.version }}
+          GITHUB_PACKAGES_TOKEN: ${{ github.token }}
+        run: |
+          for id in DotHerd.win-x64 DotHerd; do
+            test -f "packages/$id.$PACKAGE_VERSION.nupkg"
+          done
+          for id in DotHerd.win-x64 DotHerd; do
+            dotnet nuget push "packages/$id.$PACKAGE_VERSION.nupkg" --source "https://nuget.pkg.github.com/$GITHUB_REPOSITORY_OWNER/index.json" --api-key "$GITHUB_PACKAGES_TOKEN" --skip-duplicate
+          done

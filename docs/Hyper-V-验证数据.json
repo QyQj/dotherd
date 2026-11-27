@@ -1,0 +1,388 @@
+{
+  "accounts": {
+    "DhTest": {
+      "entry": "global",
+      "phases": [
+        {
+          "phase": "Install",
+          "result": "passed",
+          "sessionId": 3,
+          "explorer": {
+            "pid": 4900,
+            "parentPid": 1312
+          },
+          "beforeCli": {
+            "hosts": [],
+            "cores": []
+          },
+          "runEnabled": {
+            "afterPhase": true
+          },
+          "service": [
+            {
+              "state": "ready",
+              "toolCount": 4
+            }
+          ]
+        },
+        {
+          "phase": "AfterRunningLogon",
+          "result": "passed",
+          "sessionId": 6,
+          "explorer": {
+            "pid": 8380,
+            "parentPid": 8436
+          },
+          "beforeCli": {
+            "hosts": [
+              {
+                "pid": 3448,
+                "parentPid": 8380
+              }
+            ],
+            "cores": [
+              {
+                "pid": 5700,
+                "parentPid": 3448
+              }
+            ]
+          },
+          "runEnabled": {
+            "beforeCli": true
+          },
+          "service": [
+            {
+              "state": "ready",
+              "toolCount": 4
+            },
+            {
+              "state": "stopped",
+              "toolCount": 0
+            }
+          ]
+        },
+        {
+          "phase": "AfterStoppedLogon",
+          "result": "passed",
+          "sessionId": 7,
+          "explorer": {
+            "pid": 4688,
+            "parentPid": 1944
+          },
+          "beforeCli": {
+            "hosts": [
+              {
+                "pid": 1436,
+                "parentPid": 4688
+              }
+            ],
+            "cores": []
+          },
+          "observedSeconds": 90,
+          "runEnabled": {
+            "beforeCli": true,
+            "afterPhase": false
+          },
+          "service": [
+            {
+              "state": "stopped",
+              "toolCount": 0
+            }
+          ]
+        },
+        {
+          "phase": "AfterDisabledLogon",
+          "result": "passed",
+          "sessionId": 8,
+          "explorer": {
+            "pid": 9016,
+            "parentPid": 7748
+          },
+          "beforeCli": {
+            "hosts": [],
+            "cores": []
+          },
+          "observedSeconds": 91,
+          "runEnabled": {
+            "beforeCli": false,
+            "afterPhase": false
+          },
+          "service": [
+            {
+              "state": "stopped",
+              "toolCount": 0
+            },
+            {
+              "state": "ready",
+              "toolCount": 4
+            }
+          ]
+        }
+      ]
+    },
+    "DhDnx": {
+      "entry": "dnx",
+      "phases": [
+        {
+          "phase": "Install",
+          "result": "passed",
+          "sessionId": 9,
+          "explorer": {
+            "pid": 10052,
+            "parentPid": 6012
+          },
+          "beforeCli": {
+            "hosts": [],
+            "cores": []
+          },
+          "runEnabled": {
+            "afterPhase": true
+          },
+          "service": [
+            {
+              "state": "ready",
+              "toolCount": 4
+            }
+          ]
+        },
+        {
+          "phase": "AfterRunningLogon",
+          "result": "passed",
+          "sessionId": 10,
+          "explorer": {
+            "pid": 7416,
+            "parentPid": 6000
+          },
+          "beforeCli": {
+            "hosts": [
+              {
+                "pid": 8808,
+                "parentPid": 7416
+              }
+            ],
+            "cores": [
+              {
+                "pid": 8568,
+                "parentPid": 8808
+              }
+            ]
+          },
+          "runEnabled": {
+            "beforeCli": true
+          },
+          "service": [
+            {
+              "state": "ready",
+              "toolCount": 4
+            },
+            {
+              "state": "stopped",
+              "toolCount": 0
+            }
+          ]
+        },
+        {
+          "phase": "AfterStoppedLogon",
+          "result": "passed",
+          "sessionId": 11,
+          "explorer": {
+            "pid": 4824,
+            "parentPid": 9896
+          },
+          "beforeCli": {
+            "hosts": [
+              {
+                "pid": 6460,
+                "parentPid": 4824
+              }
+            ],
+            "cores": []
+          },
+          "observedSeconds": 91,
+          "runEnabled": {
+            "beforeCli": true,
+            "afterPhase": false
+          },
+          "service": [
+            {
+              "state": "stopped",
+              "toolCount": 0
+            }
+          ]
+        },
+        {
+          "phase": "AfterDisabledLogon",
+          "result": "passed",
+          "sessionId": 12,
+          "explorer": {
+            "pid": 9040,
+            "parentPid": 7756
+          },
+          "beforeCli": {
+            "hosts": [],
+            "cores": []
+          },
+          "observedSeconds": 91,
+          "runEnabled": {
+            "beforeCli": false,
+            "afterPhase": false
+          },
+          "service": [
+            {
+              "state": "stopped",
+              "toolCount": 0
+            },
+            {
+              "state": "ready",
+              "toolCount": 4
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "coldPowerCycle": {
+    "before": {
+      "result": "passed",
+      "sessionId": 12,
+      "bootUtc": "2026-11-28T02:49:50.500000Z",
+      "beforeCli": {
+        "hosts": [
+          {
+            "pid": 7308,
+            "startedUtc": "2026-11-28T03:10:46.008889Z"
+          }
+        ],
+        "cores": [
+          {
+            "pid": 9968,
+            "startedUtc": "2026-11-28T03:10:47.503739Z"
+          }
+        ]
+      },
+      "afterCli": {
+        "hosts": [
+          {
+            "pid": 7308,
+            "startedUtc": "2026-11-28T03:10:46.008889Z"
+          }
+        ],
+        "cores": [
+          {
+            "pid": 9968,
+            "startedUtc": "2026-11-28T03:10:47.503739Z"
+          }
+        ]
+      },
+      "runEnabled": true,
+      "service": {
+        "state": "ready",
+        "toolCount": 4
+      }
+    },
+    "after": {
+      "result": "passed",
+      "sessionId": 1,
+      "bootUtc": "2026-11-28T03:12:16.500000Z",
+      "beforeCli": {
+        "hosts": [
+          {
+            "pid": 6904,
+            "startedUtc": "2026-11-28T03:12:23.509918Z"
+          }
+        ],
+        "cores": [
+          {
+            "pid": 7188,
+            "startedUtc": "2026-11-28T03:12:24.837322Z"
+          }
+        ]
+      },
+      "afterCli": {
+        "hosts": [
+          {
+            "pid": 6904,
+            "startedUtc": "2026-11-28T03:12:23.509918Z"
+          }
+        ],
+        "cores": [
+          {
+            "pid": 7188,
+            "startedUtc": "2026-11-28T03:12:24.837322Z"
+          }
+        ]
+      },
+      "runEnabled": true,
+      "service": {
+        "state": "ready",
+        "toolCount": 4
+      }
+    }
+  },
+  "mcp": {
+    "result": "passed",
+    "clients": [
+      {
+        "client": "A",
+        "protocolRevision": "2026-07-28",
+        "value": 42,
+        "released": true
+      },
+      {
+        "client": "B",
+        "protocolRevision": "2025-11-25",
+        "value": 84,
+        "released": true
+      }
+    ]
+  },
+  "tray": {
+    "result": "passed",
+    "clicks": [
+      {
+        "action": "open Windows hidden icons",
+        "method": "guest Windows SendInput left-click"
+      },
+      {
+        "action": "activate main tray icon",
+        "method": "guest Windows SendInput left-click"
+      },
+      {
+        "action": "activate independent tray icon",
+        "method": "guest Windows SendInput left-click"
+      }
+    ],
+    "iconCounts": {
+      "before": {
+        "manager": 1,
+        "serenaPool": 1
+      },
+      "disabled": {
+        "manager": 1,
+        "serenaPool": 0
+      },
+      "restored": {
+        "manager": 1,
+        "serenaPool": 1
+      }
+    },
+    "dashboardHttpStatus": 200
+  },
+  "regression": {
+    "m1ExitCode": 0,
+    "m2ThroughM4EarlierAttempts": [
+      {
+        "context": "system",
+        "exitCode": 1,
+        "failure": "Host started outside an interactive Windows session."
+      },
+      {
+        "context": "interactive",
+        "exitCode": 1,
+        "failure": "M4.Legacy stdio catalog did not publish while the HTTP port was occupied.",
+        "observationLimitSeconds": 15
+      }
+    ],
+    "m2ThroughM4ExitCode": 0
+  }
+}
