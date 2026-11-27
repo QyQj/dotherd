@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "displayName": "DotHerd Control Sample",
+  "command": "dotherd-control-sample",
+  "readiness": "notify",
+  "tray": {
+    "actions": [{ "id": "open", "label": "Open" }],
+    "onActivate": "open"
+  }
+}

@@ -32,16 +32,25 @@ internal sealed class ChildProcess : IDisposable
     private async Task<int> ReadExit() { await Process.WaitForExitAsync(); return Process.ExitCode; }
     public void KillTree() => job.Dispose();
 
-    public static ChildProcess Start(AppSpec app, ControlChannel channel, AppLog log)
+    public static ChildProcess Start(AppSpec app, ControlChannel channel, AppLog log, McpDeclaration? mcp)
     {
         var variables = new SortedDictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         foreach (DictionaryEntry pair in Environment.GetEnvironmentVariables())
             variables[(string)pair.Key] = (string)pair.Value!;
+        string Expand(string value) => mcp == null || mcp.InputEnvironment.Count == 0 ? value :
+            System.Text.RegularExpressions.Regex.Replace(value, @"\{([^{}]+)\}", match =>
+            {
+                if (!mcp.InputEnvironment.TryGetValue(match.Groups[1].Value, out var name)) return match.Value;
+                string? input = Environment.GetEnvironmentVariable(name) ?? Environment.GetEnvironmentVariable(name, EnvironmentVariableTarget.User);
+                return !string.IsNullOrEmpty(input) ? input : throw new ArgumentException($"Missing environment input: {name}");
+            });
+        if (mcp != null)
+            foreach (var (key, value) in mcp.Environment) variables[key] = Expand(value);
         variables["DOTHERD_CONTROL_PIPE"] = channel.Pipe;
         variables["DOTHERD_CONTROL_TOKEN"] = channel.Token;
         variables["DOTHERD_INSTANCE"] = channel.Instance;
         string environment = string.Join('\0', variables.Select(p => p.Key + "=" + p.Value)) + "\0\0";
-        string command = string.Join(' ', app.Args.Prepend(app.Executable).Select(Quote));
+        string command = string.Join(' ', app.Args.Select(Expand).Prepend(app.Executable).Select(Quote));
 
         using var stdin = new AnonymousPipeServerStream(PipeDirection.Out, HandleInheritability.Inheritable);
         var stdout = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);

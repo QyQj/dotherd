@@ -4,5 +4,12 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>dotherd-control-sample</ToolCommandName>
+    <PackageId>DotHerd.Sample.ControlApp</PackageId>
+    <Version>1.0.0</Version>
   </PropertyGroup>
+  <ItemGroup>
+    <None Include=".dotherd/app.json" Pack="true" PackagePath=".dotherd/" />
+  </ItemGroup>
 </Project>

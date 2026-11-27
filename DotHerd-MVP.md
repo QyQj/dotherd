@@ -161,4 +161,4 @@ CLI 和桌面宿主是两个进程角色；短命令通过本地 IPC 调用唯�
 - MCP 单入口和协议：[Moor 网关](https://github.com/varandrew/moor#api) · [MCP 2026-07-28 修订](https://blog.modelcontextprotocol.io/posts/2026-07-28/) · [MCP 工具规范](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) · [NuGet MCP 包规范](https://learn.microsoft.com/nuget/concepts/nuget-mcp)。
 - Serena Pool 现状来自本机仓库的 README、SerenaPool.csproj、Program.cs、StdioBridge.cs、LocalPipeServer.cs 和 WebDashboard.cs。[Serena Pool 仓库](https://github.com/QyQj/serena-pool)
 
-本稿是设计提案。产品名已定为 DotHerd，命令为 dotherd，NuGet 包 ID 尚未预留。M0 已验证工具包、同包桌面宿主和 Serena Pool 的实际 REPL 调用。M1 已实现本地程序守护和控制协议 v1，并验证宿主重开后的恢复；登录注册和重登恢复在 M2、M3 交付。首次 acquire 的握手错误已定位到 core 与慢启动 worker 的协议协商，归入 M6 作者侧联调。[M0 与 M1 验证记录](README.md) · [握手错误复现](probes/P03/README.md)
+本稿是设计提案。产品名已定为 DotHerd，命令为 dotherd，NuGet 包 ID 尚未预留。M0 验证了工具包、同包桌面宿主和 Serena Pool 的实际 REPL 调用。M1 实现了本地程序守护和控制协议 v1。M2 实现了从选定来源安装精确版本、两种 CLI 入口共用持久宿主，以及登录注册与开关。版本切换、卸载和操作中断恢复归入 M3。首次 acquire 的握手错误已定位到 core 与慢启动 worker 的协议协商，归入 M6 作者侧联调。[M0 至 M2 验证记录](README.md) · [握手错误复现](probes/P03/README.md)

@@ -21,8 +21,10 @@ public sealed record AppSpec(string Name, string Cwd, string Executable, string[
     }
 }
 
-public sealed record Request(string Command, string? Name = null, AppSpec? App = null, string? Action = null);
-public sealed record Reply(bool Ok, string Output)
+public sealed record InstallRequest(string Id, string? Version, string Cwd, string? Source, bool AsProcess,
+    string? Command, string[] Args, Dictionary<string,string> Inputs);
+public sealed record Request(string Command, string? Name = null, AppSpec? App = null, string? Action = null, InstallRequest? Install = null);
+public sealed record Reply(bool Ok, string Output, bool Confirm = false)
 {
     public static Reply Data(object value) => new(true, JsonSerializer.Serialize(value, Wire.Json));
 }
@@ -44,6 +46,7 @@ public sealed record Profile(string Root, string Pipe)
         string root = Environment.GetEnvironmentVariable("DOTHERD_HOME") ??
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DotHerd");
         if (!Path.IsPathFullyQualified(root)) throw new ArgumentException("DOTHERD_HOME must be absolute.");
+        root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         Directory.CreateDirectory(root);
         string path = Path.Combine(root, "profile.id");
         if (!File.Exists(path))

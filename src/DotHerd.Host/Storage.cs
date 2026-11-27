@@ -3,7 +3,7 @@ using System.Text.Json;
 
 namespace DotHerd;
 
-internal sealed record Registration(Guid Id, AppSpec App, bool WantRunning, int Failures, string? LastFailure = null);
+internal sealed record Registration(Guid Id, AppSpec App, bool WantRunning, int Failures, string? LastFailure = null, InstalledPackage? Package = null);
 
 internal sealed class Store(string root)
 {

@@ -8,4 +8,9 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="NuGet.Protocol" Version="8.0.0" />
+    <!-- NuGet.Packaging requests Pkcs 8.0.1. Use the patched .NET 10 version. -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.15" />
+  </ItemGroup>
 </Project>

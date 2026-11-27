@@ -32,6 +32,7 @@ internal sealed class ManagedApp
         this.record = record;
         log = new(store.Logs, record.Id);
         state = record.Failures == 5 ? "failed" : "stopped";
+        if (Package?.Mcp?.OnConnection == true && record.WantRunning) state = "registered";
         if (state == "failed") reason = record.LastFailure ?? "Five consecutive failures; use start to retry.";
     }
 
@@ -45,7 +46,7 @@ internal sealed class ManagedApp
     {
         record.App.Name, record.App.Cwd, record.App.Executable, record.App.Args, record.App.Readiness,
         record.WantRunning, state, instance = current?.Control.Instance, pid = current?.Child?.Process.Id,
-        failures = record.Failures, reason, tooltip,
+        failures = record.Failures, reason, tooltip, package = Package,
         actions = record.App.Actions.ToDictionary(id => id, id => current?.Control.Connected == true &&
             state is "running" or "ready" && enabled.GetValueOrDefault(id, true))
     };
@@ -57,6 +58,7 @@ internal sealed class ManagedApp
     }
 
     public string Logs() => log.Read();
+    public InstalledPackage? Package => record.Package;
 
     public async Task<Reply> Run(string command, string? action = null)
     {
@@ -65,6 +67,17 @@ internal sealed class ManagedApp
         try
         {
             if (suspended) throw new InvalidOperationException("Host is exiting.");
+            if (Package?.Mcp?.OnConnection == true)
+            {
+                if (command == "action") throw new InvalidOperationException("No resident process for this on-connection service.");
+                if (command is "start" or "restart" or "stop")
+                {
+                    bool enabled = command != "stop";
+                    if (record.WantRunning != enabled) Save(record with { WantRunning = enabled });
+                    state = enabled ? "registered" : "stopped";
+                }
+                return Reply.Data(Snapshot());
+            }
             switch (command)
             {
                 case "restore":
@@ -124,7 +137,7 @@ internal sealed class ManagedApp
         {
             log.Write("host", $"Starting instance {run.Control.Instance}.");
             _ = Observe(run.Control.Listen(message => Receive(run, message), log), run);
-            run.Child = ChildProcess.Start(record.App, run.Control, log);
+            run.Child = ChildProcess.Start(record.App, run.Control, log, Package?.Mcp);
             _ = Observe(Monitor(run), run);
             if (record.App.Readiness == "notify") _ = Observe(ReadinessTimeout(run), run);
             else Ready(run, "running");

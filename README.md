@@ -1,10 +1,41 @@
 # DotHerd
 
-DotHerd 是面向 Windows 的常驻应用管理器。M1 已支持从 CLI 登记本地程序、启动和停止、查看日志，并在程序意外退出后自动重启。托管 NuGet 应用从 M2 开始。[项目规划](DotHerd-项目规划.md) · [MVP 提案](DotHerd-MVP.md)
+DotHerd 是面向 Windows 的常驻应用管理器。可以从选定的 NuGet 源安装应用，也可以手动登记本地程序。CLI 支持启停、故障重试、滚动日志和当前用户登录自启。[项目规划](DotHerd-项目规划.md) · [MVP 提案](DotHerd-MVP.md)
+
+## M2 从 NuGet 安装应用
+
+下面的 PowerShell 示例在 Windows x64 上从源码生成本地包源。请在仓库根目录运行，使用 .NET SDK 11.0.100 和 .NET 10 开发环境。`DOTNET_CLI_HOME` 将全局工具安装在演示目录，`DOTHERD_HOME` 将演示登记与日常配置隔离。首次还原从已配置的源获取构建依赖。
+
+```powershell
+$demo = [IO.Directory]::CreateDirectory("$PWD/../temp/DotHerd-M2-demo").FullName
+$feed = [IO.Directory]::CreateDirectory("$demo/feed").FullName
+$env:DOTNET_CLI_HOME = "$demo/user"
+$env:DOTHERD_HOME = "$demo/profile"
+dotnet pack .\src\DotHerd -c Release --artifacts-path "$demo/build" -o $feed -p:EnableRuntimePackDownload=false
+dotnet pack .\samples\ControlApp -c Release --artifacts-path "$demo/build" --source $feed -o $feed
+dnx DotHerd@0.1.0-preview.2 --source $feed --yes -- install DotHerd.Sample.ControlApp --source $feed
+$cli = "$env:DOTNET_CLI_HOME/.dotnet/tools/dotherd.exe"
+& $cli action DotHerd.Sample.ControlApp open
+& $cli logs DotHerd.Sample.ControlApp
+& $cli stop DotHerd.Sample.ControlApp
+& $cli startup off
+& $cli host exit
+```
+
+也可以先用 `dotnet tool install -g DotHerd --version '[0.1.0-preview.2]' --source $feed` 安装管理器。首次运行 `dotherd` 或 `dotherd install` 会启动宿主，并将持久目录中的桌面宿主写入当前用户的 Windows Run 登录项。使用 `startup status` 查看实际命令，`startup off` 关闭，`startup on` 重新启用。帮助和版本查询可以在初始化前使用。两种入口复用兼容的全局版本和同一个宿主。[SDK 的 dnx 入口](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-tool-exec)
+
+| 安装请求 | 可观察的结果 |
+|---|---|
+| `install 包ID` 或 `install 包ID@版本` | 首装省略版本会选最高稳定版。相同候选版本出现于多个源时，CLI 列出来源，使用 `--source 源名或地址` 选择。重复安装返回已登记状态和版本，显式要求换版时提示使用后续 M3 的 `update`。 |
+| 有 `.dotherd/app.json` 的工具 | 核对顶层包清单、命令和包内图标路径，安装固定版本后启动。就绪失败时返回非零，并保留登记和日志。RID 工具从顶层包安装，由 SDK 选择 Windows x64 实现。 |
+| 标准 NuGet MCP 工具 | 预览本地传输、参数和输入，确认后登记。自动化可传 `--yes`。必填输入可用 `--input-env API_KEY=MY_API_KEY` 绑定到环境变量，登记只保存变量名；运行时宿主需要能读取该变量。纯 stdio 显示 `registered`，空闲时没有 PID。工具发现和调用属于 M4。 |
+| 普通 .NET Tool | 默认列出命令。显式使用 `install 包ID --as-process --command 命令 -- 参数` 才登记并启动。类库、RID 实现子包、损坏清单、仅远程的 MCP 声明及相互冲突的双清单均有相应诊断。 |
+
+受管版本文件保存在配置目录的 `packages\`，独立的 `data\` 用作应用工作目录，`logs\` 保存日志。执行 `pwsh -NoProfile -File .\tests\M2\verify.ps1` 可从两个本地源复验，脚本会清除自己的测试登录项和临时安装。[验收脚本](tests/M2/verify.ps1) · [作者示例清单](samples/ControlApp/.dotherd/app.json)
 
 ## M1 本地程序守护
 
-在 Windows x64、PowerShell 7.4+、.NET SDK 11.0.100 和 .NET 10 开发环境中，从仓库根目录运行下面的命令即可复验。脚本从源码打包，把 `DotHerd@0.1.0-preview.1` 安装到独立目录，再通过安装出的 `dotherd.exe` 操作真实进程。包源、缓存、测试配置和程序均位于同级 `temp` 的本轮子目录，结束后自动清理。[端到端验收脚本](tests/M1/verify.ps1)
+在 Windows x64、PowerShell 7.4+、.NET SDK 11.0.100 和 .NET 10 开发环境中，从仓库根目录运行下面的命令即可复验。脚本从源码打包，把当前预览版安装到独立目录，再通过安装出的 `dotherd.exe` 操作真实进程。包源、缓存、测试配置和程序均在同级 `temp` 的本轮子目录，结束后自动清理。[端到端验收脚本](tests/M1/verify.ps1)
 
 ```powershell
 pwsh -NoProfile -File .\tests\M1\verify.ps1
@@ -18,8 +49,8 @@ pwsh -NoProfile -File .\tests\M1\verify.ps1
 $demo = [IO.Directory]::CreateDirectory("$PWD/../temp/DotHerd-M1-demo").FullName
 $feed = [IO.Directory]::CreateDirectory("$demo/feed").FullName
 $env:DOTHERD_HOME = "$demo/profile"
-dotnet pack .\src\DotHerd -c Release --artifacts-path "$demo/build" --source $feed -o $feed -p:EnableRuntimePackDownload=false
-dotnet tool install DotHerd --version '[0.1.0-preview.1]' --tool-path "$demo/tools" --source $feed
+dotnet pack .\src\DotHerd -c Release --artifacts-path "$demo/build" -o $feed -p:EnableRuntimePackDownload=false
+dotnet tool install DotHerd --version '[0.1.0-preview.2]' --tool-path "$demo/tools" --source $feed
 dotnet build .\samples\ControlApp -c Release --artifacts-path "$demo/build" --source $feed
 $cli = "$demo/tools/dotherd.exe"
 & $cli add demo --cwd $demo --readiness notify --action open -- "$demo/build/bin/ControlApp/release/ControlApp.exe" 'two words'

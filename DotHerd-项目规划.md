@@ -1,6 +1,6 @@
 # DotHerd Windows MVP 项目规划
 
-规划基线为 2026-11-27 的 [MVP 设计提案](DotHerd-MVP.md)。M0 已完成 [P01 工具包与来源](README.md#p01-本地-nuget-源实测)、[P02 单活跃用户的 Windows 宿主](README.md#p02-windows-宿主实测) 和 [P03 MCP 与 Serena 直连](probes/P03/README.md) 三项验证。M1 已交付 [本地程序守护和作者示例](README.md#m1-本地程序守护)，下一里程碑为 M2。
+规划基线为 2026-11-27 的 [MVP 设计提案](DotHerd-MVP.md)。M0 已完成 [P01 工具包与来源](README.md#p01-本地-nuget-源实测)、[P02 单活跃用户的 Windows 宿主](README.md#p02-windows-宿主实测) 和 [P03 MCP 与 Serena 直连](probes/P03/README.md) 三项验证。M1 已交付 [本地程序守护和作者示例](README.md#m1-本地程序守护)，M2 已交付 [NuGet 应用安装、dnx 引导与登录设置](README.md#m2-从-nuget-安装应用)。下一里程碑为 M3。
 
 **交付目标**是让普通 Windows 用户通过 `dotherd install SerenaPool` 安装并托管 Serena Pool。两个 agent 各自通过 DotHerd 领取不同 worktree 并完成一次真实调用。用户停止服务后，agent 重连、管理器重启和重新登录均尊重这一选择。
 
@@ -65,6 +65,8 @@ MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采�
 2. 无 DotHerd 清单时，按 `McpServer` 与 `.mcp/server.json` 识别标准 MCP 工具，预览本地传输、参数和必填输入，经用户确认后登记。仅有远端端点、缺失必填输入或无法解析时给出原因。普通 Tool 默认列出命令，显式 `--as-process --command … -- …` 才启动。双清单共存且声明冲突时，指出字段并停止安装。此阶段交付识别与登记，纯 stdio 的成功条件在 M4 接上真实工具发现。[NuGet MCP 包约定](https://learn.microsoft.com/en-us/nuget/concepts/nuget-mcp)
 3. 同源、同版本安装并验明入口后才登记。版本文件、数据与日志分目录。首次启动失败保留记录、退出码非零；重复安装同包只报告现状，指定其他版本引导使用 update。两种操作均须覆盖手动停止过的应用。
 4. 首次运行 `dotherd` 或 install 时完成初始化、登记登录项、启动宿主。干净环境下的 `dnx DotHerd -- install …` 安装同版本持久入口后原样转交；已有全局版本则协商兼容性并复用，不兼容时显示版本及升级命令。帮助和版本查询无初始化副作用。检查登录项的真实目标，并验证用户关闭自启后日常命令不会重新开启。[dnx 入口语义](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-tool-exec)
+
+2026-11-27 已在独立配置中实测全局工具和 dnx 两种入口。两个本地源提供同 ID、同版本、不同内容的工具，所选来源与实际运行输出一致。脚本覆盖标准 MCP 确认、双清单冲突、原生 RID 入口、启动失败后保留登记，以及从注册表命令直接启动持久宿主。另从 nuget.org 读取 `SerenaPool@0.3.0`，正确预览出按连接启动的 `serena-pool mcp`，在确认处选择取消。登录测试沿用单活跃用户约定。[M2 端到端验收](tests/M2/verify.ps1)
 
 ### M3　版本切换、恢复与卸载
 
