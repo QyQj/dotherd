@@ -1,0 +1,5 @@
+{
+  "schemaVersion": 1,
+  "command": "dotherd-p01",
+  "args": ["--probe", "two words"]
+}

@@ -61,7 +61,8 @@ dotherd
 | 顶层 .NET Tool 含 `.dotherd/app.json` | `dotherd install <包ID>[@版本]` 优先校验该清单。若同时提供标准 MCP 声明，发现冲突时指出字段并停止安装。清单损坏、主版本不受支持或入口非法时终止安装。诊断指明出错位置或字段，版本错误时列出支持的主版本。校验通过后按清单托管，常驻应用等待启动或就绪，纯 stdio 服务按连接启动。 |
 | 无 DotHerd 清单，带 `McpServer` 和 `.mcp/server.json` 的标准 MCP 工具 | 安装器读取本地传输和必填输入，预览并经用户确认后登记到 MCP 页。纯 stdio 工具由网关按连接启动。只声明远程端点或声明无法解析时显示原因。 |
 | DotHerd 清单与标准 MCP 声明均缺省的普通 .NET Tool | 默认只列出它提供的命令并提示“未声明常驻入口，本次未启动”。用户可显式执行 `dotherd install Some.Tool --as-process --command some-tool -- serve`。入口必须属于该包，最终的 `serve` 是传给应用的参数。 |
-| 普通 NuGet 类库或仅供 SDK 选择的 RID 子包 | 返回“该包没有可独立安装的 .NET Tool 入口”，提示选工具顶层包；若已有本地可执行文件，可用 `add`。 |
+| 普通 NuGet 类库 | 返回“该包没有可独立安装的 .NET Tool 入口”；若已有本地可执行文件，可用 `add`。 |
+| RID 实现子包 | 按 `DotnetToolRidPackage` 识别并提示“请选择工具顶层包”。SDK 可直接安装某些实现子包，DotHerd 的托管清单位于顶层包。[P01 实测](README.md#p01-本地-nuget-源实测) |
 | 本机已有可执行程序 | `dotherd add local-api --cwd "C:/Apps/MyApi" -- dotnet "C:/Apps/MyApi/MyApi.dll"`。显式登记名称、命令和参数。记录解析出的程序路径，不经 shell 拼接。移除时仅解除托管，保留用户原文件。 |
 
 ## 3. 安装、更新和卸载
