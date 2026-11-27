@@ -62,7 +62,7 @@ dotherd
 | 无 DotHerd 清单，带 `McpServer` 和 `.mcp/server.json` 的标准 MCP 工具 | 安装器读取本地传输和必填输入，预览并经用户确认后登记到 MCP 页。纯 stdio 工具由网关按连接启动。只声明远程端点或声明无法解析时显示原因。 |
 | DotHerd 清单与标准 MCP 声明均缺省的普通 .NET Tool | 默认只列出它提供的命令并提示“未声明常驻入口，本次未启动”。用户可显式执行 `dotherd install Some.Tool --as-process --command some-tool -- serve`。入口必须属于该包，最终的 `serve` 是传给应用的参数。 |
 | 普通 NuGet 类库 | 返回“该包没有可独立安装的 .NET Tool 入口”；若已有本地可执行文件，可用 `add`。 |
-| RID 实现子包 | 按 `DotnetToolRidPackage` 识别并提示“请选择工具顶层包”。SDK 可直接安装某些实现子包，DotHerd 的托管清单位于顶层包。[P01 实测](README.md#p01-本地-nuget-源实测) |
+| RID 实现子包 | 按 `DotnetToolRidPackage` 识别并提示“请选择工具顶层包”。SDK 可直接安装某些实现子包，DotHerd 的托管清单位于顶层包。[P01 实测](验证记录.md#p01-本地-nuget-源实测) |
 | 本机已有可执行程序 | `dotherd add local-api --cwd "C:/Apps/MyApi" -- dotnet "C:/Apps/MyApi/MyApi.dll"`。显式登记名称、命令和参数。记录解析出的程序路径，不经 shell 拼接。移除时仅解除托管，保留用户原文件。 |
 
 ## 3. 安装、更新和卸载
@@ -161,4 +161,4 @@ CLI 和桌面宿主是两个进程角色；短命令通过本地 IPC 调用唯�
 - MCP 单入口和协议：[Moor 网关](https://github.com/varandrew/moor#api) · [MCP 2026-07-28 修订](https://blog.modelcontextprotocol.io/posts/2026-07-28/) · [MCP 工具规范](https://modelcontextprotocol.io/specification/2026-07-28/server/tools) · [NuGet MCP 包规范](https://learn.microsoft.com/nuget/concepts/nuget-mcp)。
 - Serena Pool 现状来自本机仓库的 README、SerenaPool.csproj、Program.cs、StdioBridge.cs、LocalPipeServer.cs 和 WebDashboard.cs。[Serena Pool 仓库](https://github.com/QyQj/serena-pool)
 
-本稿是设计提案。产品名已定为 DotHerd，命令为 dotherd，NuGet 包 ID 尚未预留。M0 验证了工具包、同包桌面宿主和 Serena Pool 的实际 REPL 调用。M1 实现了本地程序守护和控制协议 v1。M2 实现了从选定来源安装精确版本、两种 CLI 入口共用持久宿主，以及登录注册与开关。版本切换、卸载和操作中断恢复归入 M3。首次 acquire 的握手错误已定位到 core 与慢启动 worker 的协议协商，归入 M6 作者侧联调。[M0 至 M2 验证记录](README.md) · [握手错误复现](probes/P03/README.md)
+本稿是设计提案。产品名已定为 DotHerd，命令为 dotherd，NuGet 包 ID 尚未预留。M0 验证了工具包、同包桌面宿主和 Serena Pool 的实际 REPL 调用。M1 实现了本地程序守护和控制协议 v1。M2 实现了从选定来源安装精确版本、两种 CLI 入口共用持久宿主，以及登录注册与开关。版本切换、卸载和操作中断恢复归入 M3。首次 acquire 的握手错误已定位到 core 与慢启动 worker 的协议协商，归入 M6 作者侧联调。[M0 至 M2 验证记录](验证记录.md) · [握手错误复现](P03-Serena-Pool直连.md)

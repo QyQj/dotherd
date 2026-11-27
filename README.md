@@ -1,118 +1,65 @@
 # DotHerd
 
-DotHerd 是面向 Windows 的常驻应用管理器。可以从选定的 NuGet 源安装应用，也可以手动登记本地程序。CLI 支持启停、故障重试、滚动日志和当前用户登录自启。[项目规划](DotHerd-项目规划.md) · [MVP 提案](DotHerd-MVP.md)
+DotHerd 在 Windows 后台运行和管理常驻应用。你可以从 NuGet 安装应用，也可以登记已有的本地程序。关闭终端后，应用继续运行；重新打开 PowerShell 即可查看状态和日志。
 
-## M2 从 NuGet 安装应用
+## 安装并运行第一个应用
 
-下面的 PowerShell 示例在 Windows x64 上从源码生成本地包源。请在仓库根目录运行，使用 .NET SDK 11.0.100 和 .NET 10 开发环境。`DOTNET_CLI_HOME` 将全局工具安装在演示目录，`DOTHERD_HOME` 将演示登记与日常配置隔离。首次还原从已配置的源获取构建依赖。
+以下示例适用于 Windows x64、.NET SDK 11 和 .NET 10 运行时。将 `$feed` 设为存放 DotHerd 和示例应用的 NuGet 包目录。如果手头只有仓库源码，可以先[准备本地包源](#从源码准备本地包源)。
 
 ```powershell
-$demo = [IO.Directory]::CreateDirectory("$PWD/../temp/DotHerd-M2-demo").FullName
-$feed = [IO.Directory]::CreateDirectory("$demo/feed").FullName
-$env:DOTNET_CLI_HOME = "$demo/user"
-$env:DOTHERD_HOME = "$demo/profile"
-dotnet pack .\src\DotHerd -c Release --artifacts-path "$demo/build" -o $feed -p:EnableRuntimePackDownload=false
-dotnet pack .\samples\ControlApp -c Release --artifacts-path "$demo/build" --source $feed -o $feed
+$feed = 'C:\Packages\DotHerd'
+dotnet tool install -g DotHerd --version '[0.1.0-preview.2]' --source $feed
+dotherd install DotHerd.Sample.ControlApp --source $feed
+dotherd status DotHerd.Sample.ControlApp
+dotherd action DotHerd.Sample.ControlApp open
+dotherd logs DotHerd.Sample.ControlApp
+dotherd stop DotHerd.Sample.ControlApp
+```
+
+示例应用就绪后，`status` 的 `state` 为 `ready`。执行 `open` 后，日志里会出现 `action=open`。首次执行 `dotherd` 或 `dotherd install` 会启动后台宿主，并为当前用户启用登录自启。
+
+也可以用 `dnx` 一次完成管理器安装和应用安装。第一个 `--source` 指定 DotHerd 的来源，第二个指定应用的来源。
+
+```powershell
 dnx DotHerd@0.1.0-preview.2 --source $feed --yes -- install DotHerd.Sample.ControlApp --source $feed
-$cli = "$env:DOTNET_CLI_HOME/.dotnet/tools/dotherd.exe"
-& $cli action DotHerd.Sample.ControlApp open
-& $cli logs DotHerd.Sample.ControlApp
-& $cli stop DotHerd.Sample.ControlApp
-& $cli startup off
-& $cli host exit
 ```
 
-也可以先用 `dotnet tool install -g DotHerd --version '[0.1.0-preview.2]' --source $feed` 安装管理器。首次运行 `dotherd` 或 `dotherd install` 会启动宿主，并将持久目录中的桌面宿主写入当前用户的 Windows Run 登录项。使用 `startup status` 查看实际命令，`startup off` 关闭，`startup on` 重新启用。帮助和版本查询可以在初始化前使用。两种入口复用兼容的全局版本和同一个宿主。[SDK 的 dnx 入口](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-tool-exec)
+### 从源码准备本地包源
 
-| 安装请求 | 可观察的结果 |
-|---|---|
-| `install 包ID` 或 `install 包ID@版本` | 首装省略版本会选最高稳定版。相同候选版本出现于多个源时，CLI 列出来源，使用 `--source 源名或地址` 选择。重复安装返回已登记状态和版本，显式要求换版时提示使用后续 M3 的 `update`。 |
-| 有 `.dotherd/app.json` 的工具 | 核对顶层包清单、命令和包内图标路径，安装固定版本后启动。就绪失败时返回非零，并保留登记和日志。RID 工具从顶层包安装，由 SDK 选择 Windows x64 实现。 |
-| 标准 NuGet MCP 工具 | 预览本地传输、参数和输入，确认后登记。自动化可传 `--yes`。必填输入可用 `--input-env API_KEY=MY_API_KEY` 绑定到环境变量，登记只保存变量名；运行时宿主需要能读取该变量。纯 stdio 显示 `registered`，空闲时没有 PID。工具发现和调用属于 M4。 |
-| 普通 .NET Tool | 默认列出命令。显式使用 `install 包ID --as-process --command 命令 -- 参数` 才登记并启动。类库、RID 实现子包、损坏清单、仅远程的 MCP 声明及相互冲突的双清单均有相应诊断。 |
-
-受管版本文件保存在配置目录的 `packages\`，独立的 `data\` 用作应用工作目录，`logs\` 保存日志。执行 `pwsh -NoProfile -File .\tests\M2\verify.ps1` 可从两个本地源复验，脚本会清除自己的测试登录项和临时安装。[验收脚本](tests/M2/verify.ps1) · [作者示例清单](samples/ControlApp/.dotherd/app.json)
-
-## M1 本地程序守护
-
-在 Windows x64、PowerShell 7.4+、.NET SDK 11.0.100 和 .NET 10 开发环境中，从仓库根目录运行下面的命令即可复验。脚本从源码打包，把当前预览版安装到独立目录，再通过安装出的 `dotherd.exe` 操作真实进程。包源、缓存、测试配置和程序均在同级 `temp` 的本轮子目录，结束后自动清理。[端到端验收脚本](tests/M1/verify.ps1)
+在仓库根目录打开 PowerShell，运行以下命令生成两个工具包，然后在同一终端使用上面的安装命令。`$feed` 已设为生成的包目录，可跳过示例中的赋值行。
 
 ```powershell
-pwsh -NoProfile -File .\tests\M1\verify.ps1
+$build = [IO.Directory]::CreateDirectory("$PWD/../temp/DotHerd-build").FullName
+$feed = [IO.Directory]::CreateDirectory("$build/feed").FullName
+dotnet pack .\src\DotHerd -c Release --artifacts-path "$build/artifacts" -o $feed -p:EnableRuntimePackDownload=false
+dotnet pack .\samples\ControlApp -c Release --artifacts-path "$build/artifacts" --source $feed -o $feed
 ```
 
-### 手动运行作者示例
+## 选择要托管的程序
 
-以下命令使用单独的演示配置。重新打开终端时，把 `DOTHERD_HOME` 和 `$cli` 设回相同路径，就可以继续控制原实例。
+- 安装**带 DotHerd 清单的 NuGet 工具**时，运行 `dotherd install 包ID` 会安装最高稳定版并启动应用。用 `包ID@版本` 固定版本；多个源提供同一候选版本时，用 `--source` 指定源名称、目录或地址。再次安装已登记的包会显示现状，手动停止的应用保持停止。
+- 对于**普通 .NET Tool**，先用 `dotherd install 包ID` 列出包提供的命令。要把其中一个命令作为常驻进程启动，可使用 `dotherd install 包ID --as-process --command 命令名 -- 应用参数`。
+- 安装**标准 MCP 工具**时，DotHerd 会预览本地传输、参数和输入，确认后登记。用 `--input-env API_KEY=MY_API_KEY` 将必填输入绑定到宿主可读取的环境变量，登记中只保存变量名。纯 stdio 服务显示 `registered`，没有常驻 PID。
+
+已有本地程序可以用 `add` 登记，再用 `start` 启动。以下示例假设应用位于 `C:\Apps\MyApi`，双横线后依次是可执行程序和传给它的参数。
 
 ```powershell
-$demo = [IO.Directory]::CreateDirectory("$PWD/../temp/DotHerd-M1-demo").FullName
-$feed = [IO.Directory]::CreateDirectory("$demo/feed").FullName
-$env:DOTHERD_HOME = "$demo/profile"
-dotnet pack .\src\DotHerd -c Release --artifacts-path "$demo/build" -o $feed -p:EnableRuntimePackDownload=false
-dotnet tool install DotHerd --version '[0.1.0-preview.2]' --tool-path "$demo/tools" --source $feed
-dotnet build .\samples\ControlApp -c Release --artifacts-path "$demo/build" --source $feed
-$cli = "$demo/tools/dotherd.exe"
-& $cli add demo --cwd $demo --readiness notify --action open -- "$demo/build/bin/ControlApp/release/ControlApp.exe" 'two words'
-& $cli start demo
-& $cli action demo open
-& $cli logs demo
-& $cli stop demo
-& $cli host exit
+dotherd add local-api --cwd 'C:\Apps\MyApi' -- dotnet 'C:\Apps\MyApi\MyApi.dll'
+dotherd start local-api
 ```
 
-`add` 登记程序后保持停止。普通前台程序使用默认的 `--readiness process`，启动后显示 `running`。选择 `notify` 时，`start` 等待应用发送 `ready`，超过 30 秒会报告失败并进入重试。用 `dotherd status [名称]` 查看状态、PID、启动实例及失败次数，`dotherd restart <名称>` 有序停旧启新。
+普通程序启动后显示 `running`。如果程序支持 DotHerd 就绪通知，可以在 `add` 的双横线前指定 `--readiness notify`。此时 `start` 最多等待 30 秒，收到通知后显示 `ready`。
 
-| 场景 | 宿主行为 |
+## 日常管理
+
+| 操作 | 命令 |
 |---|---|
-| 应用自行退出 | 记录退出码，含退出码 0。连续失败按 1、2、4、8 秒重试，第五次停在 `failed` 等待手动 `start`。连续运行或就绪 60 秒后清零。 |
-| 用户停止 | 先保存停止意图并取消退避，再请求退出。10 秒宽限到期后回收该应用的整棵进程树。 |
-| 宿主退出并重新打开 | 每个应用使用独立的 Windows Job Object。重新打开宿主时恢复应当运行的应用，手动停止和连续五次失败的应用保持原状态。 |
-| 查看日志 | `logs` 按时间戳标记 stdout、stderr 和宿主事件。应用文本输出建议用 UTF-8。每个应用保留当前日志和上一份，每份最多约 1 MiB。 |
+| 列出全部应用，或查看某个应用的状态和 PID | `dotherd status`、`dotherd status 名称` |
+| 启动、停止或重启 | `dotherd start 名称`、`dotherd stop 名称`、`dotherd restart 名称` |
+| 查看应用的标准输出、错误输出和退出原因 | `dotherd logs 名称` |
+| 查看、关闭或开启当前用户的登录自启 | `dotherd startup status`、`dotherd startup off`、`dotherd startup on` |
+| 结束本次后台宿主及受管进程 | `dotherd host exit` |
 
-默认配置位于 `%LOCALAPPDATA%\DotHerd`，`apps\` 保存登记和运行意图，`logs\` 保存日志。控制协议 v1 使用每次启动独立的命名管道，每行一条 UTF-8 JSON。应用从环境读取 `DOTHERD_CONTROL_PIPE`、`DOTHERD_INSTANCE` 和 `DOTHERD_CONTROL_TOKEN`，先发送包含版本、实例和令牌的 `hello`。随后可上报 `ready`、`tray.update`，并接收 `action` 和 `shutdown`。[完整 .NET 作者示例](samples/ControlApp/Program.cs) · [消息格式](DotHerd-MVP.md#5-管理界面与应用托盘接口)
+需要保持运行的应用自行退出时，DotHerd 会分别等待 1、2、4、8 秒重试。连续第五次失败后，状态变为 `failed`。用 `logs` 查看原因，修正后运行 `start`。手动 `stop` 会取消重试，下次打开宿主时仍保持停止。
 
-## P01 本地 NuGet 源实测
-
-2026-11-27 在 Windows x64 上使用 .NET SDK `11.0.100`，工具目标框架为 `net10.0`。三个本地源均提供 `DotHerd.P01.Probe@1.0.0`。各包在构建时写入不同的来源标记，运行程序时只传清单里的两个参数 `--probe` 和 `two words`。
-
-| 选定源 | 顶层包中的 SDK 工具设置 | 安装目录中的命令 | 实现入口 | 标准输出 | 退出码 |
-|---|---|---|---|---|---:|
-| A | `tools/net10.0/any/DotnetToolSettings.xml` | `dotherd-p01.exe` | `Probe.dll` | `source-A` | 0 |
-| B | `tools/net10.0/any/DotnetToolSettings.xml` | `dotherd-p01.exe` | `Probe.dll` | `source-B` | 0 |
-| RID | `tools/any/any/DotnetToolSettings.xml` | `dotherd-p01.cmd` | `Probe.exe` | `source-RID` | 0 |
-
-三个顶层包的 `.nuspec` 均只声明 `DotnetTool`，归档根目录均有大小写完全匹配的 `.dotherd/app.json`。其中的 `command` 与 SDK 设置中的命令名均为 `dotherd-p01`。
-
-RID 顶层包通过 `RuntimeIdentifierPackages` 把 `win-x64` 映射到 `DotHerd.P01.Probe.win-x64`。子包类型为 `DotnetToolRidPackage`，入口位于 `tools/net10.0/win-x64/Probe.exe`。样例只在顶层包打入 DotHerd 清单。M2 可据此按包类型识别顶层包，并按安装实际生成的文件解析命令。固定拼接 `.exe` 会漏掉本次 RID 安装的入口。
-
-单独指定 RID 子包 ID 时，SDK 11.0.100 也成功安装了 `dotherd-p01.cmd`。用相同参数运行，得到 `source-RID` 和退出码 0。M2 要在安装前检查包类型，遇到 `DotnetToolRidPackage` 时提示选择顶层包。
-
-### 复验
-
-在 Windows x64 上安装 PowerShell 7.4+、上述 SDK 和 .NET 10 开发环境后，从仓库根目录运行：
-
-```powershell
-pwsh -NoProfile -File .\probes\P01\verify.ps1
-```
-
-[验收脚本](probes/P01/verify.ps1) 先打出全部包，再依次从 A、B、RID 读取顶层清单，最后额外按子包 ID 安装一次。每次安装都使用新目录，共用本轮独立的 NuGet 缓存。脚本用 `--source` 指定唯一来源，用 `--version '[1.0.0]'` 固定版本，用 `--tool-path` 指定目录。它以该目录内的绝对路径启动命令，逐一核对参数、来源输出和退出码。构建、包源、缓存和安装目录均在仓库同级的 `temp` 下，本轮结束后自动清理。[dotnet tool install 文档](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-tool-install)
-
-## P02 Windows 宿主实测
-
-2026-11-27 在 Windows x64、.NET SDK `11.0.100` 上，从本地 NuGet 源安装了 `DotHerd.P02@1.0.0`。同一个包内有控制台工具入口 `dotherd-p02.exe` 和桌面宿主 `P02Host.exe`（`WinExe`）。CLI 从自身程序集所在目录定位桌面宿主，用 Windows Shell 启动它，通过当前用户专用命名管道读取结果。宿主用命名互斥量选出唯一实例。探针用每轮独立的 GUID 隔离并发复验。
-
-| 验收场景 | 一次运行的实际结果 |
-|---|---|
-| 两个首次命令同时到达 | CLI `7736`、`36352` 都确认宿主管道尚未建立，再同时放行。两者均返回宿主 PID `26988`，退出码均为 `0`。 |
-| 关闭终端 | 两个 CLI 都已连接测试控制台。控制台进程 `22488` 退出后，只读 `status` 仍收到 `26988` 的响应，系统进程列表中有一个该轮宿主。 |
-| 强制终止宿主 | 先观察到 `26988 → 46284 → 46328` 的宿主、应用、子进程关系，只终止 `26988` 后，另两个已持有句柄的进程均在 5 秒内退出。 |
-| 直接启动登录入口 | 从含空格的持久安装路径执行带引号的 186 字符命令行，宿主 `32216` 在当前交互会话响应，`GetConsoleProcessList` 显示未连接控制台。按单活跃用户约定，本项覆盖直接启动；未修改 HKCU Run 或执行真实注销、重新登录。 |
-
-M1 可以沿用同包双入口。CLI 显式设置 `UseShellExecute = true` 后，即使调用方重定向了输出，也能读到 EOF 并关闭终端。宿主为应用创建带 `KILL_ON_JOB_CLOSE` 的 Job Object，通过 `PROC_THREAD_ATTRIBUTE_JOB_LIST` 在创建应用进程时就将其纳入 Job。之后应用自行创建的子进程也随之回收。[Windows Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
-
-从仓库根目录运行 `pwsh -NoProfile -File .\probes\P02\verify.ps1` 可复验以上四项。脚本使用本地源、独立安装目录和无可见窗口的 Windows 控制台，完成后回收本轮进程和临时目录。[验收脚本](probes/P02/verify.ps1)
-
-## P03 Serena Pool 直连
-
-两种前端修订 `2026-07-28`、`2025-11-25` 都能直连 `serena-pool mcp`、发现四个工具、领取目录、从真实 REPL 得到 `42` 并释放租约。另已复现首次领取失败。worker 启动较慢时，core 会在同一连接上尝试旧握手，收到 `-32022`。该问题归入 M6。[版本、取消行为、三段链路与复验命令](probes/P03/README.md)
+默认数据目录为 `%LOCALAPPDATA%\DotHerd`。`packages\` 存放已安装的版本，`data\` 是包应用的工作目录，`logs\` 保存滚动日志。可将 `DOTHERD_HOME` 设为其他绝对路径来使用独立配置。

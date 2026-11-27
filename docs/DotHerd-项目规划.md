@@ -1,6 +1,6 @@
 # DotHerd Windows MVP 项目规划
 
-规划基线为 2026-11-27 的 [MVP 设计提案](DotHerd-MVP.md)。M0 已完成 [P01 工具包与来源](README.md#p01-本地-nuget-源实测)、[P02 单活跃用户的 Windows 宿主](README.md#p02-windows-宿主实测) 和 [P03 MCP 与 Serena 直连](probes/P03/README.md) 三项验证。M1 已交付 [本地程序守护和作者示例](README.md#m1-本地程序守护)，M2 已交付 [NuGet 应用安装、dnx 引导与登录设置](README.md#m2-从-nuget-安装应用)。下一里程碑为 M3。
+规划基线为 2026-11-27 的 [MVP 设计提案](DotHerd-MVP.md)。M0 已完成 [P01 工具包与来源](验证记录.md#p01-本地-nuget-源实测)、[P02 单活跃用户的 Windows 宿主](验证记录.md#p02-windows-宿主实测) 和 [P03 MCP 与 Serena 直连](P03-Serena-Pool直连.md) 三项验证。M1 已交付 [本地程序守护和作者示例](验证记录.md#m1-本地程序守护)，M2 已交付 [NuGet 应用安装、dnx 引导与登录设置](验证记录.md#m2-从-nuget-安装应用)。下一里程碑为 M3。
 
 **交付目标**是让普通 Windows 用户通过 `dotherd install SerenaPool` 安装并托管 Serena Pool。两个 agent 各自通过 DotHerd 领取不同 worktree 并完成一次真实调用。用户停止服务后，agent 重连、管理器重启和重新登录均尊重这一选择。
 
@@ -45,7 +45,7 @@
 | 任务 | 做法 | 完成证据 |
 |---|---|---|
 | P01 工具包与来源 | 用本地源打一个仅声明 `DotnetTool` 类型的工具包，另做 RID 顶层包样例。检查最终顶层 `.nupkg` 中的 `.dotherd/app.json`，按同一来源、精确版本及 `--tool-path` 安装并运行清单声明的命令。再用同 ID、同版本、不同输出的第二个源验证来源选择。 | 记下实际 SDK 版本、包内路径、所选入口和程序输出；能识别顶层包与 RID 实现包，所装工具确实来自选定源。SDK 的打包规则可作起点。[SDK 打包逻辑](https://github.com/dotnet/sdk/blob/v10.0.100/src/Tasks/Microsoft.NET.Build.Tasks/targets/Microsoft.NET.PackTool.targets) · [工具安装命令](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-tool-install) |
-| P02 Windows 宿主 | 从工具入口并发执行两个首次命令，关闭终端后查询宿主。让测试应用创建子进程，再终止宿主观察整棵树。按单活跃用户假设直接执行登录入口，跳过独立账户重登。 | 已记录两次 CLI 返回结果、终端关闭后的实例数、父子进程退出结果和登录入口的控制台状态。采用同包 CLI 与 WinExe 桌面宿主。[实测记录](README.md#p02-windows-宿主实测) |
+| P02 Windows 宿主 | 从工具入口并发执行两个首次命令，关闭终端后查询宿主。让测试应用创建子进程，再终止宿主观察整棵树。按单活跃用户假设直接执行登录入口，跳过独立账户重登。 | 已记录两次 CLI 返回结果、终端关闭后的实例数、父子进程退出结果和登录入口的控制台状态。采用同包 CLI 与 WinExe 桌面宿主。[实测记录](验证记录.md#p02-windows-宿主实测) |
 | P03 MCP 与 Serena 直连 | 固定客户端、C# SDK、Serena Pool 及 worker 版本，先直连现有 `serena-pool mcp`，依次做工具发现和 `acquire → call → release`。遇错时区分前端到 bridge、bridge 到 core、core 到 worker 三段，并记录失败方法、修订与已脱敏的错误。 | 留下直连成功记录或一个可重复的失败步骤及归属。列明新修订与实际旧版各自的发现、调用、进度和取消能力；已知失败进入 M6 跟踪。M1–M3 可独立推进。 |
 
 MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采用的修订可能不同，应分别记录。P03 已实测两种前端修订；旧前端的调用也能到达使用新版的 worker。M4 需区分取消排队与取消等待已经执行的请求。客户端绑定的生命周期由 DotHerd 管理。[MCP 修订说明](https://blog.modelcontextprotocol.io/posts/2026-07-28/) · [工具规范](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
@@ -57,7 +57,7 @@ MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采�
 3. 完成控制协议 v1 和最小 .NET 作者接入示例，覆盖四种消息及旧启动实例发来迟到消息。普通前台进程存活即可显示运行中，`notify` 应用须在默认 30 秒内报告就绪。超时停止该次进程，再执行守护策略。
 4. stop 先持久化停止意图、取消重试，再请求优雅退出，默认宽限 10 秒后回收进程树。验收时在退避期间 stop、在就绪前 restart，并验证旧实例的 ready 或退出消息不会改变新实例状态。
 
-2026-11-27 已从本地源安装真实工具完成上述验收。另模拟了关闭终端、结束受管主进程和强制结束宿主，分别验证日志可读、应用自动重启和按持久意图恢复。[验收入口](tests/M1/verify.ps1) · [场景与断言](tests/M1/Program.cs)
+2026-11-27 已从本地源安装真实工具完成上述验收。另模拟了关闭终端、结束受管主进程和强制结束宿主，分别验证日志可读、应用自动重启和按持久意图恢复。[验收入口](../tests/M1/verify.ps1) · [场景与断言](../tests/M1/Program.cs)
 
 ### M2　NuGet 安装与两种用户入口
 
@@ -66,7 +66,7 @@ MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采�
 3. 同源、同版本安装并验明入口后才登记。版本文件、数据与日志分目录。首次启动失败保留记录、退出码非零；重复安装同包只报告现状，指定其他版本引导使用 update。两种操作均须覆盖手动停止过的应用。
 4. 首次运行 `dotherd` 或 install 时完成初始化、登记登录项、启动宿主。干净环境下的 `dnx DotHerd -- install …` 安装同版本持久入口后原样转交；已有全局版本则协商兼容性并复用，不兼容时显示版本及升级命令。帮助和版本查询无初始化副作用。检查登录项的真实目标，并验证用户关闭自启后日常命令不会重新开启。[dnx 入口语义](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-tool-exec)
 
-2026-11-27 已在独立配置中实测全局工具和 dnx 两种入口。两个本地源提供同 ID、同版本、不同内容的工具，所选来源与实际运行输出一致。脚本覆盖标准 MCP 确认、双清单冲突、原生 RID 入口、启动失败后保留登记，以及从注册表命令直接启动持久宿主。另从 nuget.org 读取 `SerenaPool@0.3.0`，正确预览出按连接启动的 `serena-pool mcp`，在确认处选择取消。登录测试沿用单活跃用户约定。[M2 端到端验收](tests/M2/verify.ps1)
+2026-11-27 已在独立配置中实测全局工具和 dnx 两种入口。两个本地源提供同 ID、同版本、不同内容的工具，所选来源与实际运行输出一致。脚本覆盖标准 MCP 确认、双清单冲突、原生 RID 入口、启动失败后保留登记，以及从注册表命令直接启动持久宿主。另从 nuget.org 读取 `SerenaPool@0.3.0`，正确预览出按连接启动的 `serena-pool mcp`，在确认处选择取消。登录测试沿用单活跃用户约定。[M2 端到端验收](../tests/M2/verify.ps1)
 
 ### M3　版本切换、恢复与卸载
 
@@ -95,7 +95,7 @@ MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采�
 
 ### M6　Serena Pool 作者接入与双客户端联调
 
-本机作者项目当前声明版本 `0.3.0`、包类型 `DotnetTool;McpServer`，现有 MCP 清单的 stdio 参数为 `mcp`。README 记录 core 每 15 秒检查空闲退出，`Pool__WebDashboard` 会同时影响页面与托盘。这些是接入起点。M6 作者侧须处理 core 到慢启动 worker 的协商。以 P03 的 7 秒延迟复验，验收首次领取、调用和释放。现版可复现旧握手错误 `-32022`。[P03 实测](probes/P03/README.md) · [作者项目](../serena-pool/src/SerenaPool/SerenaPool.csproj) · [现有清单](../serena-pool/src/SerenaPool/.mcp/server.json) · [作者说明](../serena-pool/README.zh-CN.md)
+本机作者项目当前声明版本 `0.3.0`、包类型 `DotnetTool;McpServer`，现有 MCP 清单的 stdio 参数为 `mcp`。README 记录 core 每 15 秒检查空闲退出，`Pool__WebDashboard` 会同时影响页面与托盘。这些是接入起点。M6 作者侧须处理 core 到慢启动 worker 的协商。以 P03 的 7 秒延迟复验，验收首次领取、调用和释放。现版可复现旧握手错误 `-32022`。[P03 实测](P03-Serena-Pool直连.md) · [作者项目](https://github.com/QyQj/serena-pool/blob/v0.3.0/src/SerenaPool/SerenaPool.csproj) · [现有清单](https://github.com/QyQj/serena-pool/blob/v0.3.0/src/SerenaPool/.mcp/server.json) · [作者说明](https://github.com/QyQj/serena-pool/blob/v0.3.0/README.zh-CN.md)
 
 1. **作者仓库**将 `.dotherd/app.json` 打入顶层包，沿用 `DotnetTool;McpServer` 和 `.mcp/server.json`。明确独立启动的 `mcp` 与受管模式的 `mcp --connect-only` 的各自用途，和安装器共同验证双声明；真实的入口或传输冲突应能指出。
 2. **作者仓库**实现前台 `--supervised`。管理和 MCP 管道可用后发送 ready，受管 core 取消自身空闲退出，保留 worker 和租约策略。同端口已有独立 core 时给出迁移提示并保护其会话。dashboard 沿用现有实现，可单独抑制旧托盘；页面关闭时禁用 open 动作。
@@ -104,7 +104,7 @@ MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采�
 
 ### M7　发布候选与验收记录
 
-先用本地源的候选包走完整安装路径。交付物包括 DotHerd Windows 工具包、Serena Pool 接入候选包、用户 README、作者清单与控制协议示例。README 随功能落地更新，给出首装、两种客户端配置、日志、停用、自启、更新回退和卸载的操作示例。公开发布前另行确认 NuGet 包 ID 的可用性和发布权限。
+先用本地源的候选包走完整安装路径。交付物包括 DotHerd Windows 工具包、Serena Pool 接入候选包、用户 README、作者清单与控制协议示例。设计、开发进度和验收记录集中在 `docs/`。根目录 README 面向用户，随功能落地给出首装、两种客户端配置、日志、停用、自启、更新回退和卸载的操作示例。公开发布前另行确认 NuGet 包 ID 的可用性和发布权限。
 
 | MVP 第 8 节场景 | 实现阶段 | 验收记录应能回答的问题 |
 |---|---|---|

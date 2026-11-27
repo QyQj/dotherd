@@ -1,6 +1,6 @@
 # P03 · Serena Pool 直连
 
-2026-11-27，Windows x64，.NET SDK `11.0.100`。客户端为本目录的 `DotHerd.P03/1.0.0`，客户端和 Pool 都使用 C# MCP SDK `2.4.0`。真实 REPL 返回了 worker 内的包版本 `serena-agent 2.1.0`、Python `mcp 2.2.0` 和计算结果 `6 × 7 = 42`。
+2026-11-27，Windows x64，.NET SDK `11.0.100`。客户端为 [P03 探针](../probes/P03/Probe.csproj) 中的 `DotHerd.P03/1.0.0`，客户端和 Pool 都使用 C# MCP SDK `2.4.0`。真实 REPL 返回了 worker 内的包版本 `serena-agent 2.1.0`、Python `mcp 2.2.0` 和计算结果 `6 × 7 = 42`。
 
 | 客户端到 bridge 的修订 | 发现和能力 | 调用结果 |
 |---|---|---|
