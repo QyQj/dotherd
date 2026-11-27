@@ -17,5 +17,6 @@
   <ItemGroup>
     <ProjectReference Include="../DotHerd.Host/DotHerd.Host.csproj" />
     <None Include="../../README.md" Pack="true" PackagePath="/" />
+    <None Include="../../THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="/" />
   </ItemGroup>
 </Project>
