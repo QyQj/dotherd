@@ -1,6 +1,6 @@
 # DotHerd
 
-DotHerd 的目标是让 Windows 用户从 NuGet 安装并托管常驻应用。当前完成了 M0 的 P01 工具包验证。产品设计与后续任务见 [MVP 提案](DotHerd-MVP.md) 和 [项目规划](DotHerd-项目规划.md)。
+DotHerd 的目标是让 Windows 用户从 NuGet 安装并托管常驻应用。M0 已完成 P01 工具包验证和 P02 单活跃用户的 Windows 宿主验证。产品设计与后续任务见 [MVP 提案](DotHerd-MVP.md) 和 [项目规划](DotHerd-项目规划.md)。
 
 ## P01 本地 NuGet 源实测
 
@@ -27,3 +27,18 @@ pwsh -NoProfile -File .\probes\P01\verify.ps1
 ```
 
 [验收脚本](probes/P01/verify.ps1) 先打出全部包，再依次从 A、B、RID 读取顶层清单，最后额外按子包 ID 安装一次。每次安装都使用新目录，共用本轮独立的 NuGet 缓存。脚本用 `--source` 指定唯一来源，用 `--version '[1.0.0]'` 固定版本，用 `--tool-path` 指定目录。它以该目录内的绝对路径启动命令，逐一核对参数、来源输出和退出码。构建、包源、缓存和安装目录均在仓库同级的 `temp` 下，本轮结束后自动清理。[dotnet tool install 文档](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-tool-install)
+
+## P02 Windows 宿主实测
+
+2026-11-27 在 Windows x64、.NET SDK `11.0.100` 上，从本地 NuGet 源安装了 `DotHerd.P02@1.0.0`。同一个包内有控制台工具入口 `dotherd-p02.exe` 和桌面宿主 `P02Host.exe`（`WinExe`）。CLI 从自身程序集所在目录定位桌面宿主，用 Windows Shell 启动它，通过当前用户专用命名管道读取结果。宿主用命名互斥量选出唯一实例。探针用每轮独立的 GUID 隔离并发复验。
+
+| 验收场景 | 一次运行的实际结果 |
+|---|---|
+| 两个首次命令同时到达 | CLI `7736`、`36352` 都确认宿主管道尚未建立，再同时放行。两者均返回宿主 PID `26988`，退出码均为 `0`。 |
+| 关闭终端 | 两个 CLI 都已连接测试控制台。控制台进程 `22488` 退出后，只读 `status` 仍收到 `26988` 的响应，系统进程列表中有一个该轮宿主。 |
+| 强制终止宿主 | 先观察到 `26988 → 46284 → 46328` 的宿主、应用、子进程关系，只终止 `26988` 后，另两个已持有句柄的进程均在 5 秒内退出。 |
+| 直接启动登录入口 | 从含空格的持久安装路径执行带引号的 186 字符命令行，宿主 `32216` 在当前交互会话响应，`GetConsoleProcessList` 显示未连接控制台。按单活跃用户约定，本项覆盖直接启动；未修改 HKCU Run 或执行真实注销、重新登录。 |
+
+M1 可以沿用同包双入口。CLI 显式设置 `UseShellExecute = true` 后，即使调用方重定向了输出，也能读到 EOF 并关闭终端。宿主为应用创建带 `KILL_ON_JOB_CLOSE` 的 Job Object，通过 `PROC_THREAD_ATTRIBUTE_JOB_LIST` 在创建应用进程时就将其纳入 Job。之后应用自行创建的子进程也随之回收。[Windows Job Objects](https://learn.microsoft.com/en-us/windows/win32/procthread/job-objects)
+
+从仓库根目录运行 `pwsh -NoProfile -File .\probes\P02\verify.ps1` 可复验以上四项。脚本使用本地源、独立安装目录和无可见窗口的 Windows 控制台，完成后回收本轮进程和临时目录。[验收脚本](probes/P02/verify.ps1)

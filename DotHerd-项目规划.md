@@ -1,6 +1,6 @@
 # DotHerd Windows MVP 项目规划
 
-规划基线为 2026-11-27 的 [MVP 设计提案](DotHerd-MVP.md)。M0 的 P01 已通过 Windows x64 本地包源验证，见 [清单、入口与来源实测记录](README.md#p01-本地-nuget-源实测)。P02、P03 待实施。
+规划基线为 2026-11-27 的 [MVP 设计提案](DotHerd-MVP.md)。M0 已通过 [P01 工具包与来源验证](README.md#p01-本地-nuget-源实测) 和 [P02 单活跃用户的 Windows 宿主验证](README.md#p02-windows-宿主实测)。P03 待实施。
 
 **交付目标**是让普通 Windows 用户通过 `dotherd install SerenaPool` 安装并托管 Serena Pool。两个 agent 各自通过 DotHerd 领取不同 worktree 并完成一次真实调用。用户停止服务后，agent 重连、管理器重启和重新登录均尊重这一选择。
 
@@ -45,7 +45,7 @@
 | 任务 | 做法 | 完成证据 |
 |---|---|---|
 | P01 工具包与来源 | 用本地源打一个仅声明 `DotnetTool` 类型的工具包，另做 RID 顶层包样例。检查最终顶层 `.nupkg` 中的 `.dotherd/app.json`，按同一来源、精确版本及 `--tool-path` 安装并运行清单声明的命令。再用同 ID、同版本、不同输出的第二个源验证来源选择。 | 记下实际 SDK 版本、包内路径、所选入口和程序输出；能识别顶层包与 RID 实现包，所装工具确实来自选定源。SDK 的打包规则可作起点。[SDK 打包逻辑](https://github.com/dotnet/sdk/blob/v10.0.100/src/Tasks/Microsoft.NET.Build.Tasks/targets/Microsoft.NET.PackTool.targets) · [工具安装命令](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-tool-install) |
-| P02 Windows 宿主 | 从工具入口启动可脱离终端的宿主，并发执行两个首次命令。让测试程序创建子进程，再终止宿主观察整棵树；在测试账户验证登录项能无控制台启动持久入口。 | 保留两次 CLI 的返回结果、宿主实例数、父子进程退出结果及一次登录观察。用现象确定 CLI 与桌面宿主在同一工具包内的启动方式。 |
+| P02 Windows 宿主 | 从工具入口并发执行两个首次命令，关闭终端后查询宿主。让测试应用创建子进程，再终止宿主观察整棵树。按单活跃用户假设直接执行登录入口，跳过独立账户重登。 | 已记录两次 CLI 返回结果、终端关闭后的实例数、父子进程退出结果和登录入口的控制台状态。采用同包 CLI 与 WinExe 桌面宿主。[实测记录](README.md#p02-windows-宿主实测) |
 | P03 MCP 与 Serena 直连 | 固定客户端、C# SDK、Serena Pool 及 worker 版本，先直连现有 `serena-pool mcp`，依次做工具发现和 `acquire → call → release`。遇错时区分前端到 bridge、bridge 到 core、core 到 worker 三段，并记录失败方法、修订与已脱敏的错误。 | 留下直连成功记录或一个可重复的失败步骤及归属。列明新修订与实际旧版各自的发现、调用、进度和取消能力；已知失败进入 M6 跟踪。M1–M3 可独立推进。 |
 
 MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采用的修订可能不同，应分别记录。P03 要验证旧修订的握手，以及新修订的逐请求元数据和能力声明。客户端绑定的生命周期由 DotHerd 管理。[MCP 修订说明](https://blog.modelcontextprotocol.io/posts/2026-07-28/) · [工具规范](https://modelcontextprotocol.io/specification/2026-07-28/server/tools)
@@ -113,4 +113,4 @@ MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采�
 | HTTP 与 stdio 隔离 | M4 | 两种前端的同号并发请求和取消是否各归其主？缺少凭据或非法来源是否被拒绝？ |
 | Serena 端到端 | M6 | 两个实际调用各返回什么、共享几个 core、释放后哪些进程退出，以及手动停止后工具是否撤销？ |
 
-保留候选版本、SDK 和 MCP 修订、入口命令、退出码、可辨别的调用结果，以及登录或托盘的人工观察。P01 已完成，P02 和 P03 可分别在 Windows 测试账户和已有 Serena 环境开展。三项结果决定 M1 的宿主启动方式、M2 的安装方式，以及 M4/M6 需要支持和修复的具体协议组合。
+保留候选版本、SDK 和 MCP 修订、入口命令、退出码、可辨别的调用结果，以及登录或托盘的人工观察。P01、P02 已完成，M1 可沿用同包双入口和每应用独立 Job 的方案。P03 将在已有 Serena 环境确定 M4/M6 需要支持和修复的协议组合。
