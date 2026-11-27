@@ -1,6 +1,45 @@
 # DotHerd
 
-DotHerd 的目标是让 Windows 用户从 NuGet 安装并托管常驻应用。M0 的工具包、Windows 宿主和 Serena Pool 直连验证均已完成。产品设计与后续任务见 [MVP 提案](DotHerd-MVP.md) 和 [项目规划](DotHerd-项目规划.md)。
+DotHerd 是面向 Windows 的常驻应用管理器。M1 已支持从 CLI 登记本地程序、启动和停止、查看日志，并在程序意外退出后自动重启。托管 NuGet 应用从 M2 开始。[项目规划](DotHerd-项目规划.md) · [MVP 提案](DotHerd-MVP.md)
+
+## M1 本地程序守护
+
+在 Windows x64、PowerShell 7.4+、.NET SDK 11.0.100 和 .NET 10 开发环境中，从仓库根目录运行下面的命令即可复验。脚本从源码打包，把 `DotHerd@0.1.0-preview.1` 安装到独立目录，再通过安装出的 `dotherd.exe` 操作真实进程。包源、缓存、测试配置和程序均位于同级 `temp` 的本轮子目录，结束后自动清理。[端到端验收脚本](tests/M1/verify.ps1)
+
+```powershell
+pwsh -NoProfile -File .\tests\M1\verify.ps1
+```
+
+### 手动运行作者示例
+
+以下命令使用单独的演示配置。重新打开终端时，把 `DOTHERD_HOME` 和 `$cli` 设回相同路径，就可以继续控制原实例。
+
+```powershell
+$demo = [IO.Directory]::CreateDirectory("$PWD/../temp/DotHerd-M1-demo").FullName
+$feed = [IO.Directory]::CreateDirectory("$demo/feed").FullName
+$env:DOTHERD_HOME = "$demo/profile"
+dotnet pack .\src\DotHerd -c Release --artifacts-path "$demo/build" --source $feed -o $feed -p:EnableRuntimePackDownload=false
+dotnet tool install DotHerd --version '[0.1.0-preview.1]' --tool-path "$demo/tools" --source $feed
+dotnet build .\samples\ControlApp -c Release --artifacts-path "$demo/build" --source $feed
+$cli = "$demo/tools/dotherd.exe"
+& $cli add demo --cwd $demo --readiness notify --action open -- "$demo/build/bin/ControlApp/release/ControlApp.exe" 'two words'
+& $cli start demo
+& $cli action demo open
+& $cli logs demo
+& $cli stop demo
+& $cli host exit
+```
+
+`add` 登记程序后保持停止。普通前台程序使用默认的 `--readiness process`，启动后显示 `running`。选择 `notify` 时，`start` 等待应用发送 `ready`，超过 30 秒会报告失败并进入重试。用 `dotherd status [名称]` 查看状态、PID、启动实例及失败次数，`dotherd restart <名称>` 有序停旧启新。
+
+| 场景 | 宿主行为 |
+|---|---|
+| 应用自行退出 | 记录退出码，含退出码 0。连续失败按 1、2、4、8 秒重试，第五次停在 `failed` 等待手动 `start`。连续运行或就绪 60 秒后清零。 |
+| 用户停止 | 先保存停止意图并取消退避，再请求退出。10 秒宽限到期后回收该应用的整棵进程树。 |
+| 宿主退出并重新打开 | 每个应用使用独立的 Windows Job Object。重新打开宿主时恢复应当运行的应用，手动停止和连续五次失败的应用保持原状态。 |
+| 查看日志 | `logs` 按时间戳标记 stdout、stderr 和宿主事件。应用文本输出建议用 UTF-8。每个应用保留当前日志和上一份，每份最多约 1 MiB。 |
+
+默认配置位于 `%LOCALAPPDATA%\DotHerd`，`apps\` 保存登记和运行意图，`logs\` 保存日志。控制协议 v1 使用每次启动独立的命名管道，每行一条 UTF-8 JSON。应用从环境读取 `DOTHERD_CONTROL_PIPE`、`DOTHERD_INSTANCE` 和 `DOTHERD_CONTROL_TOKEN`，先发送包含版本、实例和令牌的 `hello`。随后可上报 `ready`、`tray.update`，并接收 `action` 和 `shutdown`。[完整 .NET 作者示例](samples/ControlApp/Program.cs) · [消息格式](DotHerd-MVP.md#5-管理界面与应用托盘接口)
 
 ## P01 本地 NuGet 源实测
 

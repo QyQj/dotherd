@@ -7,4 +7,7 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../../src/DotHerd.Host/WindowsJob.cs" Link="WindowsJob.cs" />
+  </ItemGroup>
 </Project>

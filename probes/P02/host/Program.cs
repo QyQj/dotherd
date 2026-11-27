@@ -16,7 +16,8 @@ switch (args[0])
         {
             if (!first) return 0;
             using var job = WindowsJob.Create();
-            int appPid = WindowsJob.StartApp(job, exe, id);
+            using var app = WindowsJob.Start(job, exe, $"\"{exe}\" app {id:N}");
+            int appPid = app.Id;
             var state = new { hostPid = Environment.ProcessId, appPid, hostConsole = Probe.HasConsole, hostPath = exe };
             string response = JsonSerializer.Serialize(state);
             while (true)

@@ -1,6 +1,6 @@
 # DotHerd Windows MVP 项目规划
 
-规划基线为 2026-11-27 的 [MVP 设计提案](DotHerd-MVP.md)。M0 已完成 [P01 工具包与来源](README.md#p01-本地-nuget-源实测)、[P02 单活跃用户的 Windows 宿主](README.md#p02-windows-宿主实测) 和 [P03 MCP 与 Serena 直连](probes/P03/README.md) 三项验证。
+规划基线为 2026-11-27 的 [MVP 设计提案](DotHerd-MVP.md)。M0 已完成 [P01 工具包与来源](README.md#p01-本地-nuget-源实测)、[P02 单活跃用户的 Windows 宿主](README.md#p02-windows-宿主实测) 和 [P03 MCP 与 Serena 直连](probes/P03/README.md) 三项验证。M1 已交付 [本地程序守护和作者示例](README.md#m1-本地程序守护)，下一里程碑为 M2。
 
 **交付目标**是让普通 Windows 用户通过 `dotherd install SerenaPool` 安装并托管 Serena Pool。两个 agent 各自通过 DotHerd 领取不同 worktree 并完成一次真实调用。用户停止服务后，agent 重连、管理器重启和重新登录均尊重这一选择。
 
@@ -56,6 +56,8 @@ MCP 2026-07-28 已移除旧式初始化握手与协议会话。前、后端采�
 2. 每个常驻应用使用独立 Job Object。捕获 stdout、stderr、退出原因并按应用滚动写日志。期望运行时，无论退出码是否为零均按策略重试；按提案建议先取 1、2、4、8 秒，第五次连续失败等待手动重试，稳定运行 60 秒后清零。
 3. 完成控制协议 v1 和最小 .NET 作者接入示例，覆盖四种消息及旧启动实例发来迟到消息。普通前台进程存活即可显示运行中，`notify` 应用须在默认 30 秒内报告就绪。超时停止该次进程，再执行守护策略。
 4. stop 先持久化停止意图、取消重试，再请求优雅退出，默认宽限 10 秒后回收进程树。验收时在退避期间 stop、在就绪前 restart，并验证旧实例的 ready 或退出消息不会改变新实例状态。
+
+2026-11-27 已从本地源安装真实工具完成上述验收。另模拟了关闭终端、结束受管主进程和强制结束宿主，分别验证日志可读、应用自动重启和按持久意图恢复。[验收入口](tests/M1/verify.ps1) · [场景与断言](tests/M1/Program.cs)
 
 ### M2　NuGet 安装与两种用户入口
 

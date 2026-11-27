@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.ComponentModel;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
@@ -23,28 +24,47 @@ internal static unsafe partial class WindowsJob
         return job;
     }
 
-    public static int StartApp(SafeFileHandle job, string exe, Guid id)
+    public static Process Start(SafeFileHandle job, string exe, string commandLine, string? cwd = null,
+        string? environment = null, nint[]? stdHandles = null)
     {
-        // PROC_THREAD_ATTRIBUTE_JOB_LIST assigns the process at creation, before any app code can spawn a worker.
+        int count = stdHandles is null ? 1 : 2;
         nuint size = 0;
-        if (InitializeProcThreadAttributeList(0, 1, 0, ref size) != 0 || Marshal.GetLastPInvokeError() != 122)
+        if (InitializeProcThreadAttributeList(0, count, 0, ref size) != 0 || Marshal.GetLastPInvokeError() != 122)
             throw new Win32Exception(Marshal.GetLastPInvokeError());
         nint attributes = Marshal.AllocHGlobal(checked((nint)size));
         try
         {
-            Check(InitializeProcThreadAttributeList(attributes, 1, 0, ref size));
+            Check(InitializeProcThreadAttributeList(attributes, count, 0, ref size));
             try
             {
                 nint handle = job.DangerousGetHandle();
                 Check(UpdateProcThreadAttribute(attributes, 0, JobListAttribute, &handle, (nuint)sizeof(nint), 0, 0));
                 var startup = new StartupInfoEx { Info = new StartupInfo { Size = (uint)sizeof(StartupInfoEx) }, Attributes = attributes };
-                char[] command = $"\"{exe}\" app {id:N}\0".ToCharArray();
-                fixed (char* commandLine = command)
+                fixed (nint* handles = stdHandles)
+                fixed (char* env = environment)
+                fixed (char* command = (commandLine + '\0').ToCharArray())
                 {
-                    Check(CreateProcessW(exe, commandLine, 0, 0, 0, ExtendedStartupInfoPresent, 0, null, &startup, out var process));
-                    using var processHandle = new SafeFileHandle(process.Process, true);
-                    using var threadHandle = new SafeFileHandle(process.Thread, true);
-                    return process.ProcessId;
+                    if (stdHandles is not null)
+                    {
+                        Check(UpdateProcThreadAttribute(attributes, 0, 0x20002, handles, (nuint)(3 * sizeof(nint)), 0, 0));
+                        startup.Info.Flags = 0x100; // STARTF_USESTDHANDLES; only these three handles are inherited.
+                        startup.Info.StdInput = handles[0];
+                        startup.Info.StdOutput = handles[1];
+                        startup.Info.StdError = handles[2];
+                    }
+                    const uint suspended = 0x4, unicodeEnvironment = 0x400, noWindow = 0x08000000;
+                    Check(CreateProcessW(exe, command, 0, 0, stdHandles is null ? 0 : 1,
+                        ExtendedStartupInfoPresent | suspended | unicodeEnvironment | noWindow, (nint)env, cwd, &startup, out var child));
+                    using var processHandle = new SafeFileHandle(child.Process, true);
+                    using var thread = new SafeFileHandle(child.Thread, true);
+                    var process = Process.GetProcessById(child.ProcessId);
+                    try
+                    {
+                        _ = process.Handle; // Retain the actual process even if it exits immediately on resume.
+                        if (ResumeThread(thread) == uint.MaxValue) throw new Win32Exception(Marshal.GetLastPInvokeError());
+                        return process;
+                    }
+                    catch { process.Dispose(); throw; }
                 }
             }
             finally { DeleteProcThreadAttributeList(attributes); }
@@ -55,6 +75,9 @@ internal static unsafe partial class WindowsJob
             GC.KeepAlive(job);
         }
     }
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    private static partial uint ResumeThread(SafeFileHandle thread);
 
     private static void Check(int success)
     {
